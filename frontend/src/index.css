@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased;
+  }
+}
+
+/* Custom Scrollbar for premium fintech UI feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-slate-800 rounded-full hover:bg-slate-400 dark:hover:bg-slate-700 transition-colors;
+}
+
+/* Mesh Gradients for background panels */
+.mesh-gradient-indigo {
+  background-image: radial-gradient(at 10% 20%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                    radial-gradient(at 90% 80%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
+}
+
+.mesh-gradient-green {
+  background-image: radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.1) 0px, transparent 50%),
+                    radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.08) 0px, transparent 50%);
+}
+
+/* Premium card hover borders */
+.card-hover-border {
+  @apply border border-border-light dark:border-border-dark transition-all duration-300 hover:border-brand-primary/30 dark:hover:border-brand-primary/30;
+}

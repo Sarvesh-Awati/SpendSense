@@ -1,0 +1,16 @@
+{
+  "name": "spendsense",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered Personal Finance Assistant",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "build:backend": "npm run build --workspace backend",
+    "build:frontend": "npm run build --workspace frontend"
+  }
+}

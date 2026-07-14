@@ -1,0 +1,214 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+}
+
+enum SubscriptionFrequency {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum NotificationType {
+  BUDGET_EXCEEDED
+  SUBSCRIPTION_RENEWAL
+  SAVINGS_REMINDER
+  SYSTEM
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model User {
+  id           String         @id @default(uuid()) @db.Uuid
+  email        String         @unique
+  passwordHash String
+  firstName    String?
+  lastName     String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  
+  // Relations
+  refreshTokens RefreshToken[]
+  categories    Category[]
+  transactions  Transaction[]
+  budgets       Budget[]
+  goals         Goal[]
+  subscriptions Subscription[]
+  notifications Notification[]
+  receipts      Receipt[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  token     String   @unique
+  expiresAt DateTime
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Category {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String
+  type      CategoryType
+  icon      String?
+  color     String?
+  userId    String?      @db.Uuid // Nullable for system-wide categories
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  // Relations
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets      Budget[]
+  subscriptions Subscription[]
+
+  @@unique([name, userId])
+  @@index([userId])
+  @@map("categories")
+}
+
+model Transaction {
+  id             String       @id @default(uuid()) @db.Uuid
+  amount         Decimal      @db.Decimal(12, 2)
+  description    String?
+  merchant       String?
+  date           DateTime
+  type           CategoryType
+  paymentMethod  String?
+  isSubscription Boolean      @default(false)
+  userId         String       @db.Uuid
+  categoryId     String       @db.Uuid
+  receiptId      String?      @unique @db.Uuid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Relations
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  receipt  Receipt? @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([userId, categoryId])
+  @@index([userId, isSubscription])
+  @@map("transactions")
+}
+
+model Budget {
+  id         String   @id @default(uuid()) @db.Uuid
+  amount     Decimal  @db.Decimal(12, 2)
+  startDate  DateTime
+  endDate    DateTime
+  userId     String   @db.Uuid
+  categoryId String   @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, categoryId])
+  @@map("budgets")
+}
+
+model Goal {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String
+  targetAmount  Decimal   @db.Decimal(12, 2)
+  currentAmount Decimal   @default(0.00) @db.Decimal(12, 2)
+  targetDate    DateTime?
+  userId        String    @db.Uuid
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("goals")
+}
+
+model Subscription {
+  id          String                @id @default(uuid()) @db.Uuid
+  name        String
+  amount      Decimal               @db.Decimal(12, 2)
+  frequency   SubscriptionFrequency
+  startDate   DateTime
+  nextRenewal DateTime?
+  isActive    Boolean               @default(true)
+  userId      String                @db.Uuid
+  categoryId  String?               @db.Uuid
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, nextRenewal])
+  @@map("subscriptions")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  type      NotificationType
+  userId    String           @db.Uuid
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model Receipt {
+  id                String       @id @default(uuid()) @db.Uuid
+  imageUrl          String
+  rawText           String?      @db.Text
+  extractedMerchant String?
+  extractedAmount   Decimal?     @db.Decimal(12, 2)
+  extractedDate     DateTime?
+  userId            String       @db.Uuid
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  
+  // Relations
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transaction Transaction?
+
+  @@index([userId])
+  @@map("receipts")
+}
