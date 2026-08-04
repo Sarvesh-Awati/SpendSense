@@ -1,8 +1,8 @@
 export abstract class BaseRepository<T> {
-  protected modelDelegate: any;
+  protected modelDelegate: Record<string, Function>;
 
-  constructor(modelDelegate: any) {
-    this.modelDelegate = modelDelegate;
+  constructor(modelDelegate: unknown) {
+    this.modelDelegate = modelDelegate as Record<string, Function>;
   }
 
   async findById(id: string): Promise<T | null> {
@@ -12,8 +12,8 @@ export abstract class BaseRepository<T> {
   }
 
   async findAll(params?: {
-    where?: any;
-    orderBy?: any;
+    where?: unknown;
+    orderBy?: unknown;
     skip?: number;
     take?: number;
   }): Promise<T[]> {
@@ -25,13 +25,13 @@ export abstract class BaseRepository<T> {
     });
   }
 
-  async create(data: any): Promise<T> {
+  async create(data: unknown): Promise<T> {
     return this.modelDelegate.create({
       data,
     });
   }
 
-  async update(id: string, data: any): Promise<T> {
+  async update(id: string, data: unknown): Promise<T> {
     return this.modelDelegate.update({
       where: { id },
       data,
@@ -44,7 +44,7 @@ export abstract class BaseRepository<T> {
     });
   }
 
-  async count(where?: any): Promise<number> {
+  async count(where?: unknown): Promise<number> {
     return this.modelDelegate.count({ where });
   }
 }

@@ -13,10 +13,10 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitl
       <div className="w-full max-w-md">
         {/* Logo/Branding Block */}
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-primary to-brand-secondary flex items-center justify-center text-white shadow-glow-green mb-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-primary to-brand-secondary flex items-center justify-center text-white mb-3">
             <DollarSign className="w-6 h-6" />
           </div>
-          <h2 className="font-outfit font-bold text-2xl tracking-tight bg-gradient-to-r from-text-primaryLight dark:from-text-primaryDark to-brand-secondary bg-clip-text text-transparent">
+          <h2 className="font-outfit font-bold text-2xl tracking-tight text-text-primaryLight dark:text-white">
             SpendSense
           </h2>
           <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark mt-1">

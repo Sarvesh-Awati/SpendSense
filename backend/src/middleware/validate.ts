@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { AnyZodObject, ZodError } from 'zod';
+import { ZodTypeAny, ZodError } from 'zod';
 
-export const validate = (schema: AnyZodObject) => {
+export const validate = (schema: ZodTypeAny) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const parsed = await schema.parseAsync({
@@ -10,10 +10,13 @@ export const validate = (schema: AnyZodObject) => {
         params: req.params,
       });
 
-      // Assign the validated and parsed results back to request objects
-      req.body = parsed.body;
-      req.query = parsed.query;
-      req.params = parsed.params;
+      // Only reassign properties that the schema explicitly defined.
+      // If a schema doesn't define `params` or `query`, the parsed result
+      // will be `undefined` for those keys — we must NOT overwrite Express's
+      // populated req.params/query with undefined.
+      if (parsed.body !== undefined) req.body = parsed.body;
+      if (parsed.query !== undefined) req.query = parsed.query;
+      if (parsed.params !== undefined) req.params = parsed.params;
 
       return next();
     } catch (error) {

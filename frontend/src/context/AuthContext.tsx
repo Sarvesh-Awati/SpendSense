@@ -6,6 +6,17 @@ export interface UserProfile {
   email: string;
   firstName: string | null;
   lastName: string | null;
+  profilePictureUrl: string | null;
+  preferredCurrency: string;
+  language: string;
+  dateFormat: string;
+  timeFormat: string;
+  theme: string;
+  budgetAlerts: boolean;
+  savingsReminders: boolean;
+  subscriptionRenewals: boolean;
+  receiptScanNotifications: boolean;
+  emailNotifications: boolean;
   createdAt: string;
 }
 

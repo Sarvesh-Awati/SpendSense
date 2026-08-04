@@ -1,4 +1,4 @@
-import { Transaction, CategoryType } from '@prisma/client';
+import { Transaction, CategoryType, Prisma } from '@prisma/client';
 import { BaseRepository } from './BaseRepository';
 import prisma from '../database/prisma';
 
@@ -31,7 +31,7 @@ export class TransactionRepository extends BaseRepository<Transaction> {
     filters: TransactionFilters,
     pagination: PaginationParams
   ): Promise<{ transactions: Transaction[]; total: number }> {
-    const where: any = { userId };
+    const where: Prisma.TransactionWhereInput = { userId };
 
     if (filters.search) {
       where.OR = [
@@ -92,7 +92,7 @@ export class TransactionRepository extends BaseRepository<Transaction> {
     userId: string,
     startDate: Date,
     endDate: Date
-  ): Promise<any[]> {
+  ): Promise<unknown[]> {
     return this.modelDelegate.groupBy({
       by: ['categoryId'],
       where: {

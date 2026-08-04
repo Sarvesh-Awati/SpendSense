@@ -61,10 +61,10 @@ export default {
         }
       },
       boxShadow: {
-        'premium': '0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 8px -1px rgba(0, 0, 0, 0.03)',
-        'premium-dark': '0 4px 30px -10px rgba(0, 0, 0, 0.7), 0 2px 10px -5px rgba(0, 0, 0, 0.5)',
-        'glow-green': '0 0 15px rgba(16, 185, 129, 0.15)',
-        'glow-indigo': '0 0 15px rgba(99, 102, 241, 0.15)',
+        'premium': '0 6px 16px rgba(0, 0, 0, 0.08)',
+        'premium-dark': '0 6px 16px rgba(0, 0, 0, 0.6)',
+        'glow-green': 'none',
+        'glow-indigo': 'none',
       }
     },
   },

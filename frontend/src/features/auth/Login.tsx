@@ -117,7 +117,7 @@ export const Login: React.FC = () => {
       <button
         type="submit"
         disabled={loginMutation.isPending}
-        className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-brand-primary to-emerald-500 hover:from-emerald-500 hover:to-brand-primary text-white font-medium text-sm flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.01] shadow-glow-green disabled:opacity-50 disabled:pointer-events-none mt-2"
+        className="w-full py-3.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-white font-medium text-sm flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:pointer-events-none mt-2"
       >
         {loginMutation.isPending ? (
           <>

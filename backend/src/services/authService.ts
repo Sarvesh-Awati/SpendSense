@@ -19,6 +19,17 @@ export interface SanitizedUser {
   email: string;
   firstName: string | null;
   lastName: string | null;
+  profilePictureUrl: string | null;
+  preferredCurrency: string;
+  language: string;
+  dateFormat: string;
+  timeFormat: string;
+  theme: string;
+  budgetAlerts: boolean;
+  savingsReminders: boolean;
+  subscriptionRenewals: boolean;
+  receiptScanNotifications: boolean;
+  emailNotifications: boolean;
   createdAt: Date;
 }
 
@@ -154,6 +165,17 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
+      profilePictureUrl: user.profilePictureUrl,
+      preferredCurrency: user.preferredCurrency,
+      language: user.language,
+      dateFormat: user.dateFormat,
+      timeFormat: user.timeFormat,
+      theme: user.theme,
+      budgetAlerts: user.budgetAlerts,
+      savingsReminders: user.savingsReminders,
+      subscriptionRenewals: user.subscriptionRenewals,
+      receiptScanNotifications: user.receiptScanNotifications,
+      emailNotifications: user.emailNotifications,
       createdAt: user.createdAt,
     };
   }

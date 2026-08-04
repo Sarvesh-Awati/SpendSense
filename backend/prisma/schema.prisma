@@ -11,6 +11,19 @@ generator client {
 // ENUMS
 // ==========================================
 
+enum Currency {
+  USD
+  EUR
+  GBP
+  INR
+  CAD
+  AUD
+  JPY
+  CNY
+  SGD
+  AED
+}
+
 enum CategoryType {
   INCOME
   EXPENSE
@@ -37,10 +50,21 @@ model User {
   id           String         @id @default(uuid()) @db.Uuid
   email        String         @unique
   passwordHash String
-  firstName    String?
-  lastName     String?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  firstName         String?
+  lastName          String?
+  profilePictureUrl String?
+  preferredCurrency Currency       @default(INR)
+  language          String         @default("en")
+  dateFormat        String         @default("DD/MM/YYYY")
+  timeFormat        String         @default("12h")
+  theme             String         @default("dark")
+  budgetAlerts      Boolean        @default(true)
+  savingsReminders  Boolean        @default(true)
+  subscriptionRenewals Boolean     @default(true)
+  receiptScanNotifications Boolean @default(true)
+  emailNotifications Boolean       @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
   
   // Relations
   refreshTokens RefreshToken[]
@@ -95,6 +119,10 @@ model Category {
 model Transaction {
   id             String       @id @default(uuid()) @db.Uuid
   amount         Decimal      @db.Decimal(12, 2)
+  currency       Currency     @default(INR)
+  baseCurrency   Currency?
+  exchangeRate   Decimal?     @db.Decimal(10, 6)
+  convertedAmount Decimal?    @db.Decimal(12, 2)
   description    String?
   merchant       String?
   date           DateTime
@@ -119,18 +147,22 @@ model Transaction {
 }
 
 model Budget {
-  id         String   @id @default(uuid()) @db.Uuid
-  amount     Decimal  @db.Decimal(12, 2)
+  id         String    @id @default(uuid()) @db.Uuid
+  amount     Decimal   @db.Decimal(12, 2)
+  currency   Currency  @default(INR)
+  baseCurrency Currency?
+  exchangeRate Decimal?  @db.Decimal(10, 6)
+  convertedAmount Decimal? @db.Decimal(12, 2)
   startDate  DateTime
   endDate    DateTime
-  userId     String   @db.Uuid
-  categoryId String   @db.Uuid
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  userId     String    @db.Uuid
+  categoryId String?   @db.Uuid
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   // Relations
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([userId, categoryId])
@@ -142,6 +174,10 @@ model Goal {
   name          String
   targetAmount  Decimal   @db.Decimal(12, 2)
   currentAmount Decimal   @default(0.00) @db.Decimal(12, 2)
+  currency      Currency  @default(INR)
+  baseCurrency  Currency?
+  exchangeRate  Decimal?  @db.Decimal(10, 6)
+  convertedAmount Decimal? @db.Decimal(12, 2)
   targetDate    DateTime?
   userId        String    @db.Uuid
   createdAt     DateTime  @default(now())
@@ -158,6 +194,10 @@ model Subscription {
   id          String                @id @default(uuid()) @db.Uuid
   name        String
   amount      Decimal               @db.Decimal(12, 2)
+  currency    Currency              @default(INR)
+  baseCurrency Currency?
+  exchangeRate Decimal?             @db.Decimal(10, 6)
+  convertedAmount Decimal?          @db.Decimal(12, 2)
   frequency   SubscriptionFrequency
   startDate   DateTime
   nextRenewal DateTime?
