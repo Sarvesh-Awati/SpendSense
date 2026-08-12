@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import env from './config/env';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import transactionRoutes from './routes/transactionRoutes';
@@ -13,6 +14,10 @@ import receiptRoutes from './routes/receiptRoutes';
 import subscriptionRoutes from './routes/subscriptionRoutes';
 import analyticsRoutes from './routes/analyticsRoutes';
 import errorHandler from './middleware/errorHandler';
+
+// Read version from package.json at startup (avoids hardcoding)
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { version } = require('../package.json');
 
 const app = express();
 
@@ -33,6 +38,17 @@ app.use('/api/goals', goalRoutes);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/analytics', analyticsRoutes);
+
+// Root API Landing — provides service discovery for bots, load balancers, and developers
+app.get('/', (req: Request, res: Response) => {
+  res.status(200).json({
+    name: 'SpendSense API',
+    version,
+    status: 'Running',
+    environment: env.NODE_ENV,
+    health: '/health',
+  });
+});
 
 // Basic Health Check Route
 app.get('/health', (req: Request, res: Response) => {
