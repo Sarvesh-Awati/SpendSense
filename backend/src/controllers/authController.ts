@@ -52,3 +52,25 @@ export const me = catchAsync(async (req: Request, res: Response) => {
     data: { user },
   });
 });
+
+export const forgotPassword = catchAsync(async (req: Request, res: Response) => {
+  const { email } = req.body;
+  await authService.forgotPassword(email);
+
+  // Always return the same response to prevent account enumeration
+  res.status(200).json({
+    status: 'success',
+    message: 'If an account exists for this email, a password reset link has been sent.',
+  });
+});
+
+export const resetPassword = catchAsync(async (req: Request, res: Response) => {
+  const { token, password } = req.body;
+  await authService.resetPassword(token, password);
+
+  res.status(200).json({
+    status: 'success',
+    message: 'Password has been reset successfully. Please sign in with your new password.',
+  });
+});
+

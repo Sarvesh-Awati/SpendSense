@@ -1,86 +1,97 @@
 import React from 'react';
-import { useBudgets } from '../../services/budgets';
 import { Link } from 'react-router-dom';
 import { PiggyBank, ArrowRight, Loader2 } from 'lucide-react';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useBudgets } from '../../services/budgets';
+import { formatCurrency, toFiniteNumber } from '../../utils/formatCurrency';
+import Card, { PanelHead } from '../../components/ui/Card';
+import EmptyState from '../../components/ui/EmptyState';
 
 export const BudgetSummaryWidget: React.FC = () => {
   const { data: response, isLoading } = useBudgets();
   const budgets = response?.data?.budgets || [];
 
-  const formatCurrencyLocal = (val: number, currency: string) => {
-    return formatCurrency(val, currency);
-  };
-
   return (
-    <div className="bg-white dark:bg-card-dark p-6 rounded-3xl border border-border-light dark:border-border-dark shadow-premium dark:shadow-premium-dark text-left flex flex-col justify-between space-y-4 h-full">
-      <div className="flex justify-between items-start">
-        <div>
-          <h3 className="font-outfit text-base font-bold tracking-tight">Active Budgets</h3>
-          <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-0.5">
-            Progress of your active spending limits
-          </p>
-        </div>
-        <Link
-          to="/budgets"
-          className="p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111622] text-brand-primary transition-colors cursor-pointer"
-          title="Manage Budgets"
-        >
-          <ArrowRight className="w-4 h-4" />
-        </Link>
-      </div>
-
-      <div className="space-y-4 flex-grow flex flex-col justify-center">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="w-5 h-5 animate-spin text-text-secondaryDark" />
-          </div>
-        ) : budgets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center text-xs text-text-secondaryLight dark:text-text-secondaryDark">
-            <PiggyBank className="w-8 h-8 text-slate-500 mb-2 opacity-50" />
-            <p className="italic mb-2">No active budgets.</p>
+    <Card tone="bare" tier="secondary" className="h-full flex flex-col">
+      <PanelHead
+        label="Budgets"
+        action={
+          budgets.length > 0 ? (
             <Link
               to="/budgets"
-              className="text-[10px] text-brand-primary font-bold hover:underline"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-primary hover:gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 rounded transition-all"
             >
-              Configure Limits
+              Manage
+              <ArrowRight className="w-3 h-3" aria-hidden="true" />
             </Link>
+          ) : undefined
+        }
+      />
+
+      <div className="mt-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-4 h-4 animate-spin text-text-secondaryDark" aria-label="Loading budgets" />
           </div>
+        ) : budgets.length === 0 ? (
+          <EmptyState
+            icon={PiggyBank}
+            title="No active budgets"
+            description="Set your first spending limit."
+            to="/budgets"
+            actionLabel="Create Budget"
+            size="inline"
+          />
         ) : (
-          budgets.slice(0, 3).map((b) => {
-            const isOverall = b.categoryId === null;
-            const categoryColor = isOverall ? '#10b981' : b.category?.color || '#cbd5e1';
-            const progressColor = b.isExceeded
-              ? 'bg-finance-expense'
-              : b.isWarning
-              ? 'bg-amber-500'
-              : 'bg-brand-primary';
+          <ul className="mt-5 space-y-5">
+            {budgets.slice(0, 3).map((b) => {
+              const isOverall = b.categoryId === null;
+              const label = isOverall ? 'Overall' : b.category?.name ?? 'Budget';
 
-            return (
-              <div key={b.id} className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-text-primaryLight dark:text-text-primaryDark truncate max-w-[150px] flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: categoryColor }} />
-                    {isOverall ? 'Overall Monthly' : b.category?.name}
-                  </span>
-                  <span className="text-[10px] text-text-secondaryLight dark:text-text-secondaryDark">
-                    <strong>{formatCurrencyLocal(b.spent, b.currency)}</strong> / {formatCurrencyLocal(b.amount, b.currency)}
-                  </span>
-                </div>
+              // Warning styling only when the data actually warrants it.
+              const barColor = b.isExceeded
+                ? 'bg-finance-expense'
+                : b.isWarning
+                ? 'bg-finance-debt'
+                : 'bg-brand-primary';
+              const pctColor = b.isExceeded
+                ? 'text-finance-expense'
+                : b.isWarning
+                ? 'text-finance-debt'
+                : 'text-text-secondaryLight dark:text-text-secondaryDark';
 
-                {/* Progress bar */}
-                <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-[#111622] overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${progressColor} transition-all duration-300`}
-                    style={{ width: `${Math.min(100, b.percentageUsed)}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })
+              return (
+                <li key={b.id}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-sm font-medium truncate text-text-primaryLight dark:text-text-primaryDark">
+                      {label}
+                    </span>
+                    <span className="text-[11px] tnum text-text-secondaryLight dark:text-text-secondaryDark shrink-0">
+                      <span className="text-text-primaryLight dark:text-text-primaryDark font-semibold">
+                        {formatCurrency(b.spent, b.currency)}
+                      </span>
+                      {' / '}
+                      {formatCurrency(b.amount, b.currency)}
+                    </span>
+                  </div>
+
+                  <div className="h-1.5 mt-2 w-full rounded-full bg-black/[0.05] dark:bg-white/[0.05] overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${barColor} transition-[width] duration-[900ms] ease-out`}
+                      style={{ width: `${Math.min(100, Math.max(0, toFiniteNumber(b.percentageUsed)))}%` }}
+                    />
+                  </div>
+
+                  <p className={`text-[11px] tnum mt-1.5 ${pctColor}`}>
+                    {toFiniteNumber(b.percentageUsed)}% used
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
-    </div>
+    </Card>
   );
 };
+
 export default BudgetSummaryWidget;

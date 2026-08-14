@@ -104,7 +104,7 @@ export class TransactionRepository extends BaseRepository<Transaction> {
         },
       },
       _sum: {
-        amount: true,
+        convertedAmount: true,
       },
     });
   }

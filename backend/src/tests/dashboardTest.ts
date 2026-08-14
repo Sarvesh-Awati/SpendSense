@@ -28,18 +28,21 @@ async function runTests() {
 
   // Mock Date objects to keep testing consistent
   const mockTransactions = [
-    { id: '1', amount: new Decimal(5000), type: CategoryType.INCOME, date: new Date() },
-    { id: '2', amount: new Decimal(2000), type: CategoryType.EXPENSE, date: new Date() },
+    { id: '1', convertedAmount: new Decimal(5000), type: CategoryType.INCOME, date: new Date() },
+    { id: '2', convertedAmount: new Decimal(2000), type: CategoryType.EXPENSE, date: new Date() },
   ];
 
   // 1. Dashboard calculations success
   await runTest('Dashboard Standard Calculations Math', async () => {
+    // Reporting guard: no unconverted rows in this fixture.
+    (prisma.transaction as unknown as Record<string, Function>).count = async () => 0 as any;
+
     // Mock prisma database aggregate checks
     (prisma.transaction as unknown as Record<string, Function>).aggregate = async (args: any) => {
       if (args.where.type === CategoryType.INCOME) {
-        return { _sum: { amount: new Decimal(5000) } } as any;
+        return { _sum: { convertedAmount: new Decimal(5000) } } as any;
       }
-      return { _sum: { amount: new Decimal(2000) } } as any;
+      return { _sum: { convertedAmount: new Decimal(2000) } } as any;
     };
 
     // Mock prisma database group check conditions
@@ -47,21 +50,21 @@ async function runTests() {
       // Category Spending groupBy
       if (args.by.includes('categoryId')) {
         return [
-          { categoryId: 'cat-1', _sum: { amount: new Decimal(2000) } },
+          { categoryId: 'cat-1', _sum: { convertedAmount: new Decimal(2000) } },
         ] as any;
       }
       
       // Merchant Spending groupBy
       if (args.by.includes('merchant')) {
         return [
-          { merchant: 'Starbucks', _sum: { amount: new Decimal(100) } },
+          { merchant: 'Starbucks', _sum: { convertedAmount: new Decimal(100) } },
         ] as any;
       }
 
       // Monthly Sums groupBy
       return [
-        { type: CategoryType.INCOME, _sum: { amount: new Decimal(5000) } },
-        { type: CategoryType.EXPENSE, _sum: { amount: new Decimal(2000) } },
+        { type: CategoryType.INCOME, _sum: { convertedAmount: new Decimal(5000) } },
+        { type: CategoryType.EXPENSE, _sum: { convertedAmount: new Decimal(2000) } },
       ] as any;
     };
 
@@ -95,18 +98,19 @@ async function runTests() {
 
   // 2. Division by zero protection (Zero Income rate checks)
   await runTest('Division By Zero Protection for Zero Income', async () => {
+    (prisma.transaction as unknown as Record<string, Function>).count = async () => 0 as any;
     (prisma.transaction as unknown as Record<string, Function>).aggregate = async (args: any) => {
       if (args.where.type === CategoryType.INCOME) {
-        return { _sum: { amount: null } } as any; // No income
+        return { _sum: { convertedAmount: null } } as any; // No income
       }
-      return { _sum: { amount: new Decimal(1500) } } as any;
+      return { _sum: { convertedAmount: new Decimal(1500) } } as any;
     };
 
     (prisma.transaction as unknown as Record<string, Function>).groupBy = async (args: any) => {
       if (args.by.includes('categoryId')) return [] as any;
       if (args.by.includes('merchant')) return [] as any;
       return [
-        { type: CategoryType.EXPENSE, _sum: { amount: new Decimal(1500) } },
+        { type: CategoryType.EXPENSE, _sum: { convertedAmount: new Decimal(1500) } },
       ] as any;
     };
 

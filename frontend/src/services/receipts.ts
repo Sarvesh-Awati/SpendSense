@@ -39,7 +39,7 @@ export const uploadReceipt = async (file: File): Promise<UploadResponse> => {
   const formData = new FormData();
   formData.append('receipt', file);
 
-  const response = await api.post('/api/receipts/upload', formData, {
+  const response = await api.post('/receipts/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -48,17 +48,17 @@ export const uploadReceipt = async (file: File): Promise<UploadResponse> => {
 };
 
 export const getReceipts = async (): Promise<{ status: string; data: { receipts: ReceiptRecord[] } }> => {
-  const response = await api.get('/api/receipts');
+  const response = await api.get('/receipts');
   return response.data;
 };
 
 export const getReceipt = async (id: string): Promise<{ status: string; data: { receipt: ReceiptRecord } }> => {
-  const response = await api.get(`/api/receipts/${id}`);
+  const response = await api.get(`/receipts/${id}`);
   return response.data;
 };
 
 export const deleteReceipt = async (id: string) => {
-  const response = await api.delete(`/api/receipts/${id}`);
+  const response = await api.delete(`/receipts/${id}`);
   return response.data;
 };
 

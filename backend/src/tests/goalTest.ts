@@ -1,7 +1,19 @@
 import goalService from '../services/goalService';
+import userRepository from '../repositories/UserRepository';
 import goalRepository from '../repositories/GoalRepository';
 import { NotFoundError, BadRequestError } from '../errors/AppError';
 import { Decimal } from '@prisma/client/runtime/library';
+
+
+/**
+ * Multi-currency: budget/goal services resolve the account base currency, and
+ * reporting is guarded against unconverted rows. Both must be stubbed so these
+ * unit tests exercise their own logic.
+ */
+const stubCurrencyDeps = () => {
+  userRepository.findById = async () =>
+    ({ id: 'user-1', baseCurrency: 'INR', preferredCurrency: 'INR' } as any);
+};
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -44,6 +56,7 @@ async function runTests() {
 
   // 1. Goal Creation & Initial Calculation Check
   await runTest('Goal Creation & Calculations', async () => {
+    stubCurrencyDeps();
     goalRepository.create = async (data: any) => ({
       id: 'new-goal-uuid',
       name: data.name,
@@ -73,6 +86,7 @@ async function runTests() {
 
   // 2. Goal Updates
   await runTest('Goal Update Operations', async () => {
+    stubCurrencyDeps();
     goalRepository.findById = async () => mockGoal as any;
     goalRepository.update = async (id: string, data: any) => ({
       ...mockGoal,
@@ -92,6 +106,7 @@ async function runTests() {
 
   // 3. Goal Deletion
   await runTest('Goal Deletion Operations', async () => {
+    stubCurrencyDeps();
     goalRepository.findById = async () => mockGoal as any;
     goalRepository.delete = async () => mockGoal as any;
 
@@ -101,6 +116,7 @@ async function runTests() {
 
   // 4. Contribution and Increment Logic
   await runTest('Contribution and Increment Math', async () => {
+    stubCurrencyDeps();
     goalRepository.findById = async () => mockGoal as any;
     goalRepository.updateBalance = async (id: string, amount: number) => ({
       ...mockGoal,
@@ -115,6 +131,7 @@ async function runTests() {
 
   // 5. Completed Goal State
   await runTest('Completed Goal Checks', async () => {
+    stubCurrencyDeps();
     const customGoal = {
       ...mockGoal,
       currentAmount: new Decimal(50000),
@@ -129,6 +146,7 @@ async function runTests() {
 
   // 6. Tenant Isolation checks
   await runTest('Prevent Fetching Foreign Goal Detail (Tenant Isolation)', async () => {
+    stubCurrencyDeps();
     const foreignGoal = {
       ...mockGoal,
       userId: 'user-2',
@@ -145,6 +163,7 @@ async function runTests() {
 
   // 7. Validation Boundary Check
   await runTest('Reject Negative Contribution Values', async () => {
+    stubCurrencyDeps();
     goalRepository.findById = async () => mockGoal as any;
 
     try {

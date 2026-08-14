@@ -49,27 +49,27 @@ export interface SubscriptionRecord {
 
 // REST Requests
 export const getSubscriptions = async (): Promise<{ status: string; data: { subscriptions: SubscriptionRecord[] } }> => {
-  const response = await api.get('/api/subscriptions');
+  const response = await api.get('/subscriptions');
   return response.data;
 };
 
 export const getSubscription = async (id: string): Promise<{ status: string; data: { subscription: SubscriptionRecord } }> => {
-  const response = await api.get(`/api/subscriptions/${id}`);
+  const response = await api.get(`/subscriptions/${id}`);
   return response.data;
 };
 
 export const createSubscription = async (data: CreateSubscriptionInput) => {
-  const response = await api.post('/api/subscriptions', data);
+  const response = await api.post('/subscriptions', data);
   return response.data;
 };
 
 export const updateSubscription = async ({ id, data }: { id: string; data: UpdateSubscriptionInput }) => {
-  const response = await api.put(`/api/subscriptions/${id}`, data);
+  const response = await api.put(`/subscriptions/${id}`, data);
   return response.data;
 };
 
 export const deleteSubscription = async (id: string) => {
-  const response = await api.delete(`/api/subscriptions/${id}`);
+  const response = await api.delete(`/subscriptions/${id}`);
   return response.data;
 };
 

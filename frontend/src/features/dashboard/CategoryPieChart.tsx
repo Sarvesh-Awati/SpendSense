@@ -1,6 +1,8 @@
 import React from 'react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { PieChart as PieChartIcon } from 'lucide-react';
+import { formatCurrency, toFiniteNumber } from '../../utils/formatCurrency';
+import Card, { PanelHead } from '../../components/ui/Card';
+import EmptyState from '../../components/ui/EmptyState';
 
 interface CategoryPieChartProps {
   data: Array<{
@@ -12,115 +14,78 @@ interface CategoryPieChartProps {
     percentage: number;
   }>;
   currency: string;
+  onAddTransaction?: () => void;
 }
 
-export const CategoryPieChart: React.FC<CategoryPieChartProps> = ({ data, currency }) => {
-  const formatCurrencyLocal = (val: number) => {
-    return formatCurrency(val, currency);
-  };
-
-  // If no category distributions are present, render a placeholder layout
-  const isEmpty = data.length === 0;
-  const chartData = isEmpty
-    ? [{ name: 'No Transactions', amount: 1, color: '#475569' }]
-    : data;
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const dataInfo = payload[0].payload;
-      return (
-        <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl shadow-xl backdrop-blur-md text-left text-xs">
-          <p className="flex items-center gap-1.5 font-bold text-white mb-1">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: dataInfo.color }} />
-            {dataInfo.name}
-          </p>
-          <p className="text-slate-300">
-            Spent: <span className="font-bold text-white">{formatCurrencyLocal(dataInfo.amount)}</span>
-          </p>
-          {!isEmpty && (
-            <p className="text-slate-400">
-              Share: <span className="font-bold text-white">{dataInfo.percentage}%</span>
-            </p>
-          )}
-        </div>
-      );
-    }
-    return null;
-  };
+/**
+ * "Where your money goes".
+ *
+ * Replaces the previous donut-led panel with a ranked bar list, which reads
+ * faster and stays legible at narrow widths. The share bars are scaled against
+ * the largest category so the ranking is visible at a glance.
+ */
+export const CategoryPieChart: React.FC<CategoryPieChartProps> = ({
+  data,
+  currency,
+  onAddTransaction,
+}) => {
+  const money = (val: number) => formatCurrency(val, currency);
+  const top = data.slice(0, 5);
+  const largest = top.length > 0 ? Math.max(...top.map((c) => c.amount)) : 1;
 
   return (
-    <div className="bg-white dark:bg-card-dark p-6 rounded-3xl border border-border-light dark:border-border-dark shadow-premium dark:shadow-premium-dark text-left flex flex-col justify-between space-y-4 h-full">
-      <div>
-        <h3 className="font-outfit text-base font-bold tracking-tight">Category Distribution</h3>
-        <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-0.5">
-          Distribution share of this month's expenses
-        </p>
-      </div>
+    <Card tone="bare" tier="secondary" className="h-full flex flex-col">
+      <PanelHead label="Where your money goes" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-        {/* Recharts Pie Donut Chart */}
-        <div className="h-44 w-full relative flex items-center justify-center">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Tooltip content={<CustomTooltip />} />
-              <Pie
-                data={chartData}
-                dataKey="amount"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={75}
-                paddingAngle={isEmpty ? 0 : 3}
-                stroke="none"
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-
-          {/* Centered Total Marker */}
-          {!isEmpty && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-[10px] text-text-secondaryLight dark:text-text-secondaryDark uppercase font-bold tracking-wider">
-                Total Expenses
-              </span>
-              <span className="text-sm font-extrabold font-outfit mt-0.5">
-                {formatCurrencyLocal(data.reduce((acc, cat) => acc + cat.amount, 0))}
-              </span>
-            </div>
-          )}
+      {top.length === 0 ? (
+        <div className="flex-grow flex items-center justify-center">
+          <EmptyState
+            icon={PieChartIcon}
+            title="No spending data yet"
+            description="Log your first expense to see where your money goes."
+            actionLabel="Add Transaction"
+            onAction={onAddTransaction}
+            size="compact"
+          />
         </div>
-
-        {/* Categories Legend List */}
-        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-          {isEmpty ? (
-            <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark italic py-4">
-              Log expenses in transactions to see breakdown.
-            </p>
-          ) : (
-            data.slice(0, 5).map((cat) => (
-              <div key={cat.id} className="flex justify-between items-center text-xs">
-                <span className="flex items-center gap-2 truncate max-w-[130px]">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                  <span className="font-semibold truncate text-text-primaryLight dark:text-text-primaryDark">
-                    {cat.name}
+      ) : (
+        <ul className="mt-5 space-y-4">
+          {top.map((cat) => (
+            <li key={cat.id}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm font-medium truncate text-text-primaryLight dark:text-text-primaryDark">
+                  {cat.name}
+                </span>
+                <span className="flex items-baseline gap-2 shrink-0">
+                  <span className="text-sm font-semibold tnum">{money(cat.amount)}</span>
+                  <span className="text-[11px] text-text-secondaryLight dark:text-text-secondaryDark tnum w-8 text-right">
+                    {toFiniteNumber(cat.percentage)}%
                   </span>
                 </span>
-                <div className="text-right">
-                  <p className="font-bold">{formatCurrencyLocal(cat.amount)}</p>
-                  <p className="text-[10px] text-text-secondaryLight dark:text-text-secondaryDark">
-                    {cat.percentage}%
-                  </p>
-                </div>
               </div>
-            ))
+
+              <div className="h-1.5 mt-2 w-full rounded-full bg-black/[0.05] dark:bg-white/[0.05] overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-[width] duration-[900ms] ease-out"
+                  style={{
+                    width: `${Math.max(3, Math.min(100, (toFiniteNumber(cat.amount) / largest) * 100))}%`,
+                    backgroundColor: cat.color,
+                  }}
+                />
+              </div>
+            </li>
+          ))}
+
+          {data.length > top.length && (
+            <li className="text-[11px] text-text-secondaryLight dark:text-text-secondaryDark pt-0.5">
+              +{data.length - top.length} more{' '}
+              {data.length - top.length === 1 ? 'category' : 'categories'}
+            </li>
           )}
-        </div>
-      </div>
-    </div>
+        </ul>
+      )}
+    </Card>
   );
 };
+
 export default CategoryPieChart;

@@ -2,7 +2,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
 // Create custom Axios instance
 export const api = axios.create({
-  baseURL: 'http://localhost:5001', // Configured backend port
+  baseURL: '/api', // Uses Vite proxy in development
   headers: {
     'Content-Type': 'application/json',
   },
@@ -48,8 +48,11 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Do not attempt token refresh for login/register endpoints that fail with 401
-    if (originalRequest.url?.includes('/api/auth/login') || originalRequest.url?.includes('/api/auth/register')) {
+    // Do not attempt token refresh for auth endpoints that fail with 401.
+    // These URLs are relative to the baseURL ('/api'), so they must be matched
+    // WITHOUT the prefix — matching '/api/auth/login' never fired.
+    const authEntryPoints = ['/auth/login', '/auth/register', '/auth/refresh'];
+    if (authEntryPoints.some((path) => originalRequest.url?.includes(path))) {
       return Promise.reject(error);
     }
 
@@ -82,7 +85,7 @@ api.interceptors.response.use(
 
     try {
       // Request new tokens using refresh token
-      const response = await axios.post('http://localhost:5001/api/auth/refresh', {
+      const response = await axios.post('/api/auth/refresh', {
         refreshToken,
       });
 

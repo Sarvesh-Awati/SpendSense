@@ -1,30 +1,29 @@
 import { Request, Response } from 'express';
-import bcrypt from 'bcryptjs';
 import { prisma } from '../database/prisma';
 import { AppError } from '../errors/AppError';
 import catchAsync from '../utils/catchAsync';
+import authService from '../services/authService';
 import { comparePassword, hashPassword } from '../utils/password';
 
+/**
+ * Updates non-credential profile fields.
+ *
+ * SECURITY: this endpoint must never change `password` or `email`.
+ * Both were previously accepted here with no re-authentication, which turned
+ * any stolen access token into permanent account takeover. `updateProfileSchema`
+ * no longer accepts either field, and neither is read below.
+ */
 export const updateProfile = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user!.id;
-  const { 
-    firstName, lastName, email, password, profilePictureUrl, preferredCurrency,
+  const {
+    firstName, lastName, profilePictureUrl, preferredCurrency,
     language, dateFormat, timeFormat, theme,
     budgetAlerts, savingsReminders, subscriptionRenewals, receiptScanNotifications, emailNotifications
   } = req.body;
 
-  // Check if email is being updated and if it already exists
-  if (email) {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser && existingUser.id !== userId) {
-      throw new AppError('Email is already in use', 400);
-    }
-  }
-
   const updateData: any = {};
   if (firstName !== undefined) updateData.firstName = firstName;
   if (lastName !== undefined) updateData.lastName = lastName;
-  if (email !== undefined) updateData.email = email;
   if (preferredCurrency !== undefined) updateData.preferredCurrency = preferredCurrency;
   if (language !== undefined) updateData.language = language;
   if (dateFormat !== undefined) updateData.dateFormat = dateFormat;
@@ -38,10 +37,6 @@ export const updateProfile = catchAsync(async (req: Request, res: Response) => {
 
   if (profilePictureUrl !== undefined) {
     updateData.profilePictureUrl = profilePictureUrl === '' ? null : profilePictureUrl;
-  }
-
-  if (password) {
-    updateData.passwordHash = await hashPassword(password);
   }
 
   const updatedUser = await prisma.user.update({
@@ -75,6 +70,12 @@ export const updateProfile = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+/**
+ * The only path by which a password may be changed.
+ * Requires the current password, enforces the shared complexity policy via
+ * `changePasswordSchema`, revokes every existing session, and hands the
+ * caller a fresh token pair so their own session survives.
+ */
 export const changePassword = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user!.id;
   const { currentPassword, newPassword } = req.body;
@@ -91,9 +92,18 @@ export const changePassword = catchAsync(async (req: Request, res: Response) => 
     data: { passwordHash: hashedPassword },
   });
 
+  // Changing a password is the standard response to suspected compromise, so
+  // every previously issued refresh token must stop working.
+  await authService.revokeAllSessions(userId);
+
+  // Re-issue a session for the caller so they are not logged out of the
+  // device they just used to change the password.
+  const tokens = await authService.issueSessionForUser(userId);
+
   res.status(200).json({
     status: 'success',
     message: 'Password updated successfully',
+    data: { tokens },
   });
 });
 
@@ -110,8 +120,27 @@ export const logoutAllDevices = catchAsync(async (req: Request, res: Response) =
   });
 });
 
+/**
+ * Permanently deletes the account and all cascading financial records.
+ *
+ * SECURITY: irreversible and destructive, so it requires re-authentication.
+ * A bearer token alone is not sufficient, and the frontend confirmation
+ * dialog is not a control an API caller has to pass through.
+ */
 export const deleteAccount = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user!.id;
+  const { currentPassword } = req.body;
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError('User not found', 404);
+
+  const isMatch = await comparePassword(currentPassword, user.passwordHash);
+  if (!isMatch) throw new AppError('Incorrect current password', 401);
+
+  // Revoke sessions explicitly before deletion. The cascade would remove the
+  // rows anyway, but doing it first means a failure part-way through leaves
+  // no usable sessions behind.
+  await authService.revokeAllSessions(userId);
 
   // Due to onDelete: Cascade on user relations, deleting user will delete their data
   await prisma.user.delete({

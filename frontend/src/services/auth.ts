@@ -13,14 +13,33 @@ export interface RegisterParams {
   password: string;
 }
 
+export interface ForgotPasswordParams {
+  email: string;
+}
+
+export interface ResetPasswordParams {
+  token: string;
+  password: string;
+}
+
 // REST Client requests
 export const loginAPI = async (data: LoginParams) => {
-  const response = await api.post('/api/auth/login', data);
+  const response = await api.post('/auth/login', data);
   return response.data;
 };
 
 export const registerAPI = async (data: RegisterParams) => {
-  const response = await api.post('/api/auth/register', data);
+  const response = await api.post('/auth/register', data);
+  return response.data;
+};
+
+export const forgotPasswordAPI = async (data: ForgotPasswordParams) => {
+  const response = await api.post('/auth/forgot-password', data);
+  return response.data;
+};
+
+export const resetPasswordAPI = async (data: ResetPasswordParams) => {
+  const response = await api.post('/auth/reset-password', data);
   return response.data;
 };
 
@@ -44,3 +63,24 @@ export const useRegisterMutation = (options?: {
     ...options,
   });
 };
+
+export const useForgotPasswordMutation = (options?: {
+  onSuccess?: (data: any) => void;
+  onError?: (error: any) => void;
+}) => {
+  return useMutation({
+    mutationFn: forgotPasswordAPI,
+    ...options,
+  });
+};
+
+export const useResetPasswordMutation = (options?: {
+  onSuccess?: (data: any) => void;
+  onError?: (error: any) => void;
+}) => {
+  return useMutation({
+    mutationFn: resetPasswordAPI,
+    ...options,
+  });
+};
+

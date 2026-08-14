@@ -1,77 +1,83 @@
 import React from 'react';
-import { useGoals } from '../../services/goals';
 import { Link } from 'react-router-dom';
 import { Target, ArrowRight, Loader2 } from 'lucide-react';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useGoals } from '../../services/goals';
+import { formatCurrency, toFiniteNumber } from '../../utils/formatCurrency';
+import Card, { PanelHead } from '../../components/ui/Card';
+import EmptyState from '../../components/ui/EmptyState';
 
 export const GoalsSummaryWidget: React.FC = () => {
   const { data: response, isLoading } = useGoals();
   const goals = response?.data?.goals || [];
 
-  const formatCurrencyLocal = (val: number, currency: string) => {
-    return formatCurrency(val, currency);
-  };
-
   return (
-    <div className="bg-white dark:bg-card-dark p-6 rounded-3xl border border-border-light dark:border-border-dark shadow-premium dark:shadow-premium-dark text-left flex flex-col justify-between space-y-4 h-full">
-      <div className="flex justify-between items-start">
-        <div>
-          <h3 className="font-outfit text-base font-bold tracking-tight">Savings Goals</h3>
-          <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-0.5">
-            Milestones and accumulation progress
-          </p>
-        </div>
-        <Link
-          to="/goals"
-          className="p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111622] text-brand-primary transition-colors cursor-pointer"
-          title="Manage Goals"
-        >
-          <ArrowRight className="w-4 h-4" />
-        </Link>
-      </div>
+    <Card tone="bare" tier="secondary" className="h-full flex flex-col">
+      <PanelHead
+        label="Savings Goals"
+        action={
+          goals.length > 0 ? (
+            <Link
+              to="/goals"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-primary hover:gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 rounded transition-all"
+            >
+              Manage
+              <ArrowRight className="w-3 h-3" aria-hidden="true" />
+            </Link>
+          ) : undefined
+        }
+      />
 
-      <div className="space-y-4 flex-grow flex flex-col justify-center">
+      <div className="mt-4">
         {isLoading ? (
-          <div className="flex items-center justify-center py-6">
-            <Loader2 className="w-5 h-5 animate-spin text-text-secondaryDark" />
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-4 h-4 animate-spin text-text-secondaryDark" aria-label="Loading goals" />
           </div>
         ) : goals.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-6 text-center text-xs text-text-secondaryLight dark:text-text-secondaryDark font-medium">
-            <Target className="w-8 h-8 text-slate-500 mb-2 opacity-50" />
-            <p className="italic mb-2">No active savings targets.</p>
-            <Link to="/goals" className="text-[10px] text-brand-primary font-bold hover:underline">
-              Create Savings Goal
-            </Link>
-          </div>
+          <EmptyState
+            icon={Target}
+            title="What are you saving for?"
+            description="Create a goal and start tracking your progress."
+            to="/goals"
+            actionLabel="Create Goal"
+            size="inline"
+          />
         ) : (
-          goals.slice(0, 3).map((g) => {
-            const isCompleted = g.remainingAmount <= 0;
-            const progressColor = isCompleted ? 'bg-brand-primary' : 'bg-brand-secondary';
-
-            return (
-              <div key={g.id} className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-text-primaryLight dark:text-text-primaryDark truncate max-w-[150px]">
+          <ul className="mt-5 space-y-5">
+            {goals.slice(0, 3).map((g) => (
+              <li key={g.id}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm font-medium truncate text-text-primaryLight dark:text-text-primaryDark">
                     {g.name}
                   </span>
-                  <span className="text-[10px] text-text-secondaryLight dark:text-text-secondaryDark">
-                    <strong>{formatCurrencyLocal(g.currentAmount, g.currency)}</strong> / {formatCurrencyLocal(g.targetAmount, g.currency)}
+                  <span className="text-[11px] tnum text-text-secondaryLight dark:text-text-secondaryDark shrink-0">
+                    <span className="text-text-primaryLight dark:text-text-primaryDark font-semibold">
+                      {formatCurrency(g.currentAmount, g.currency)}
+                    </span>
+                    {' / '}
+                    {formatCurrency(g.targetAmount, g.currency)}
                   </span>
                 </div>
 
-                {/* Progress bar */}
-                <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-[#111622] overflow-hidden">
+                <div className="h-1.5 mt-2 w-full rounded-full bg-black/[0.05] dark:bg-white/[0.05] overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${progressColor} transition-all duration-300`}
-                    style={{ width: `${Math.min(100, g.progressPercentage)}%` }}
+                    className={`h-full rounded-full transition-[width] duration-[900ms] ease-out ${
+                      g.isCompleted ? 'bg-brand-primary' : 'bg-finance-savings'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(0, toFiniteNumber(g.progressPercentage)))}%` }}
                   />
                 </div>
-              </div>
-            );
-          })
+
+                <p className="text-[11px] tnum mt-1.5 text-text-secondaryLight dark:text-text-secondaryDark">
+                  {toFiniteNumber(g.progressPercentage)}%
+                  {g.daysRemaining !== null && g.daysRemaining > 0 && ` · ${g.daysRemaining} days left`}
+                </p>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
-    </div>
+    </Card>
   );
 };
+
 export default GoalsSummaryWidget;

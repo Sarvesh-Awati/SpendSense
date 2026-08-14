@@ -2,6 +2,7 @@ import prisma from '../database/prisma';
 import { CategoryType, Transaction } from '@prisma/client';
 import subscriptionService, { SubscriptionStats } from './subscriptionService';
 import { Decimal } from '@prisma/client/runtime/library';
+import { assertAllTransactionsConverted } from '../utils/reportingGuard';
 
 // Shared interfaces to avoid 'any'
 interface CategorySpendingData {
@@ -27,6 +28,7 @@ interface TopMerchant {
 interface SubscriptionDashboardData {
   activeCount: number;
   monthlyTotal: number;
+  unconvertibleCount: number;
   upcomingRenewals: SubscriptionStats[];
   topExpensive: SubscriptionStats[];
 }
@@ -66,6 +68,9 @@ const safeDecimal = (val: Decimal | number | null | undefined): number => {
 
 export class DashboardService {
   async getMetrics(userId: string): Promise<DashboardData> {
+    // Refuse to report rather than silently understate: SUM() skips NULLs.
+    await assertAllTransactionsConverted({ userId });
+
     const now = new Date();
     
     // Strict Date Boundaries (using local start/end times but parsed safely to avoid jumps)
@@ -95,30 +100,30 @@ export class DashboardService {
     ] = await Promise.all([
       // Total Income
       prisma.transaction.aggregate({
-        _sum: { amount: true },
+        _sum: { convertedAmount: true },
         where: { userId, type: CategoryType.INCOME },
       }),
       // Total Expense
       prisma.transaction.aggregate({
-        _sum: { amount: true },
+        _sum: { convertedAmount: true },
         where: { userId, type: CategoryType.EXPENSE },
       }),
       // Current Month
       prisma.transaction.groupBy({
         by: ['type'],
-        _sum: { amount: true },
+        _sum: { convertedAmount: true },
         where: { userId, date: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
       }),
       // Previous Month
       prisma.transaction.groupBy({
         by: ['type'],
-        _sum: { amount: true },
+        _sum: { convertedAmount: true },
         where: { userId, date: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
       }),
       // Category Breakdown (Current Month)
       prisma.transaction.groupBy({
         by: ['categoryId'],
-        _sum: { amount: true },
+        _sum: { convertedAmount: true },
         where: { userId, type: CategoryType.EXPENSE, date: { gte: startOfCurrentMonth, lte: endOfCurrentMonth } },
       }),
     ]);
@@ -133,13 +138,13 @@ export class DashboardService {
     ] = await Promise.all([
       // 30 Day Trend
       prisma.transaction.findMany({
-        select: { date: true, amount: true, type: true },
+        select: { date: true, convertedAmount: true, type: true },
         where: { userId, date: { gte: thirtyDaysAgo } },
       }),
       // Top Merchants
       prisma.transaction.groupBy({
         by: ['merchant'],
-        _sum: { amount: true },
+        _sum: { convertedAmount: true },
         where: { 
           userId, 
           type: CategoryType.EXPENSE, 
@@ -147,7 +152,7 @@ export class DashboardService {
           merchant: { not: null },
           NOT: { merchant: '' }
         },
-        orderBy: { _sum: { amount: 'desc' } },
+        orderBy: { _sum: { convertedAmount: 'desc' } },
         take: 5,
       }),
       // Recent Transactions
@@ -171,19 +176,19 @@ export class DashboardService {
     ]);
 
     // 1. Total Balance Calculations
-    const totalIncome = safeDecimal(allTimeIncome._sum.amount);
-    const totalExpense = safeDecimal(allTimeExpense._sum.amount);
+    const totalIncome = safeDecimal(allTimeIncome._sum.convertedAmount);
+    const totalExpense = safeDecimal(allTimeExpense._sum.convertedAmount);
     const totalBalance = totalIncome - totalExpense;
 
     // 2. Month-over-Month Comparisons
-    type SumGroup = { type: CategoryType; _sum: { amount: Decimal | null } };
+    type SumGroup = { type: CategoryType; _sum: { convertedAmount: Decimal | null } };
     
     const getSums = (sumsArray: SumGroup[]) => {
       let income = 0;
       let expense = 0;
       for (const group of sumsArray) {
-        if (group.type === CategoryType.INCOME) income = safeDecimal(group._sum.amount);
-        if (group.type === CategoryType.EXPENSE) expense = safeDecimal(group._sum.amount);
+        if (group.type === CategoryType.INCOME) income = safeDecimal(group._sum.convertedAmount);
+        if (group.type === CategoryType.EXPENSE) expense = safeDecimal(group._sum.convertedAmount);
       }
       return { income, expense };
     };
@@ -222,7 +227,7 @@ export class DashboardService {
         name: catInfo?.name || 'Uncategorized',
         icon: catInfo?.icon || 'Tag',
         color: catInfo?.color || '#94a3b8',
-        amount: safeDecimal(group._sum.amount),
+        amount: safeDecimal(group._sum.convertedAmount),
         percentage: 0, // Calculated sequentially below
       };
     });
@@ -258,7 +263,7 @@ export class DashboardService {
       
       const bucket = trendBucketsMap.get(dateKey);
       if (bucket) {
-        const val = safeDecimal(tx.amount);
+        const val = safeDecimal(tx.convertedAmount);
         if (tx.type === CategoryType.INCOME) bucket.income += val;
         if (tx.type === CategoryType.EXPENSE) bucket.expense += val;
       }
@@ -271,7 +276,7 @@ export class DashboardService {
       .filter((group) => group.merchant && group.merchant.trim() !== '')
       .map((group) => ({
         merchant: group.merchant!,
-        amount: safeDecimal(group._sum.amount),
+        amount: safeDecimal(group._sum.convertedAmount),
       }));
 
     // 6. Subscriptions Data Handling
@@ -280,8 +285,14 @@ export class DashboardService {
     let subMonthlyTotal = 0;
     const upcomingRenewals: SubscriptionStats[] = [];
 
+    let subsUnconvertible = 0;
     for (const sub of activeSubs) {
-      subMonthlyTotal += sub.monthlyEquivalentCost;
+      // Only base-currency-comparable values may enter the total.
+      if (sub.monthlyEquivalentInBase === null) {
+        subsUnconvertible++;
+      } else {
+        subMonthlyTotal += sub.monthlyEquivalentInBase;
+      }
       if (sub.daysUntilRenewal <= 14) {
         upcomingRenewals.push(sub);
       }
@@ -434,6 +445,9 @@ export class DashboardService {
       subscriptions: {
         activeCount: activeSubs.length,
         monthlyTotal: Number(subMonthlyTotal.toFixed(2)),
+        // > 0 means the monthly total excludes subscriptions that could not be
+        // priced in the base currency; the UI must not present it as complete.
+        unconvertibleCount: subsUnconvertible,
         upcomingRenewals: upcomingRenewals.slice(0, 3), // Provide max 3 for dashboard space constraints
         topExpensive,
       }

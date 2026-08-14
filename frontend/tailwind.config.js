@@ -9,16 +9,27 @@ export default {
     extend: {
       colors: {
         background: {
-          light: '#f8fafc', // Light slate
-          dark: '#0b0f19',  // Deep obsidian slate (fintech premium feel)
+          light: '#f4f4f1', // Warm paper
+          dark: '#0B0F14',  // Deep charcoal canvas
         },
         card: {
           light: '#ffffff',
-          dark: '#161c2a',  // Subtle slate/blue-gray container
+          dark: '#151A21',  // Panel surface sitting on the charcoal canvas
         },
         border: {
-          light: '#e2e8f0',
-          dark: '#1e293b',
+          light: '#e5e5e0',
+          dark: '#1E242C',  // Deliberately low-contrast: borders should whisper
+        },
+        // Named surfaces for the light-inside-dark composition.
+        surface: {
+          raised: '#20252B',  // Secondary dark surface (one step up from panel)
+          paper: '#F7F7F4',   // Warm off-white card placed on the dark canvas
+          paperMuted: '#EDEDE8',
+        },
+        ink: {
+          // Text colours for use ON the warm paper surface, in either theme.
+          strong: '#12161B',
+          muted: '#6B7280',
         },
         brand: {
           primary: '#10b981',   // Emerald Green (wealth/finance/growth)
@@ -39,12 +50,17 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'Outfit', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        // `font-outfit` was used throughout the app but never defined here, so
+        // every display heading silently fell back to Inter. Outfit is already
+        // loaded in index.html — this makes the intended type pairing real.
+        outfit: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
       },
       animation: {
         'fade-in': 'fadeIn 0.2s ease-out forwards',
         'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         'pulse-subtle': 'pulseSubtle 2s infinite ease-in-out',
+        'rise': 'rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both',
       },
       keyframes: {
         fadeIn: {
@@ -58,11 +74,25 @@ export default {
         pulseSubtle: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.85' },
-        }
+        },
+        // Staggered card entrance — kept short so it never delays reading.
+        rise: {
+          '0%': { transform: 'translateY(8px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+      },
+      borderRadius: {
+        // Reference language: large, soft containers.
+        'panel': '20px',
+        'card': '28px',
+        'hero': '32px',
       },
       boxShadow: {
         'premium': '0 6px 16px rgba(0, 0, 0, 0.08)',
         'premium-dark': '0 6px 16px rgba(0, 0, 0, 0.6)',
+        // Floating panels: wide, soft, low-opacity — never a hard drop shadow.
+        'float': '0 2px 4px rgba(8, 11, 15, 0.04), 0 12px 32px -8px rgba(8, 11, 15, 0.10)',
+        'float-dark': '0 2px 6px rgba(0, 0, 0, 0.35), 0 18px 44px -12px rgba(0, 0, 0, 0.55)',
         'glow-green': 'none',
         'glow-indigo': 'none',
       }

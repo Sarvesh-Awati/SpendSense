@@ -7,6 +7,8 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 import AuthLayout from './features/auth/AuthLayout';
 import Login from './features/auth/Login';
 import Register from './features/auth/Register';
+import ForgotPassword from './features/auth/ForgotPassword';
+import ResetPassword from './features/auth/ResetPassword';
 import TransactionList from './features/transactions/TransactionList';
 import Dashboard from './features/dashboard/Dashboard';
 import BudgetList from './features/budgets/BudgetList';
@@ -47,35 +49,37 @@ const DashboardLayout: React.FC = () => {
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark text-text-primaryLight dark:text-text-primaryDark transition-colors duration-300">
       {/* Dynamic Header */}
-      <header className="border-b border-border-light dark:border-border-dark backdrop-blur-md sticky top-0 z-40 bg-white/70 dark:bg-[#0b0f19]/70">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <header className="sticky top-0 z-40 backdrop-blur-xl bg-background-light/80 dark:bg-background-dark/80">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-8 h-[72px] flex items-center justify-between gap-4">
           {/* Logo */}
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-primary to-brand-secondary flex items-center justify-center text-white">
-                <span className="font-outfit font-bold text-lg">S</span>
-              </div>
-              <span className="font-outfit font-bold text-xl tracking-tight text-text-primaryLight dark:text-white">
+          <div className="flex items-center gap-4 lg:gap-10 min-w-0">
+            <Link
+              to="/"
+              className="flex items-center gap-2.5 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 rounded-full"
+            >
+              <span className="w-8 h-8 rounded-full bg-brand-primary flex items-center justify-center text-white">
+                <span className="font-outfit font-bold text-sm">S</span>
+              </span>
+              <span className="font-outfit font-semibold text-[17px] tracking-tight text-text-primaryLight dark:text-white">
                 SpendSense
               </span>
-            </div>
+            </Link>
 
-            {/* Navigation Tabs */}
-            <nav className="hidden sm:flex items-center gap-1.5">
+            {/* Borderless nav — the active item is a soft tinted pill, nothing else */}
+            <nav className="hidden lg:flex items-center gap-1" aria-label="Primary">
               {links.map((link) => {
-                const Icon = link.icon;
                 const isActive = location.pathname === link.path;
                 return (
                   <Link
                     key={link.path}
                     to={link.path}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`px-3.5 py-2 rounded-full text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${
                       isActive
-                        ? 'bg-brand-primary/10 text-brand-primary border border-brand-primary/20'
-                        : 'text-text-secondaryLight dark:text-text-secondaryDark hover:bg-slate-50 dark:hover:bg-[#111622] hover:text-text-primaryLight'
+                        ? 'bg-brand-primary/12 text-brand-primary font-semibold'
+                        : 'text-text-secondaryLight dark:text-text-secondaryDark font-medium hover:text-text-primaryLight dark:hover:text-white hover:bg-black/[0.04] dark:hover:bg-white/[0.04]'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
                     {link.label}
                   </Link>
                 );
@@ -89,9 +93,43 @@ const DashboardLayout: React.FC = () => {
       </header>
 
       {/* Page Content viewport container */}
-      <main className="max-w-7xl mx-auto px-6 py-10">
-        {/* Mobile Navigation bar */}
-        <div className="sm:hidden grid grid-cols-2 gap-2 mb-6 p-1 rounded-xl bg-slate-100 dark:bg-[#111622] border border-border-light dark:border-border-dark">
+      <main className="max-w-[1400px] mx-auto px-4 sm:px-8 pt-4 pb-10 sm:pb-14">
+        {/* Tablet: scrollable rail. Mobile: replaced by the bottom bar below. */}
+        <nav
+          className="hidden sm:block lg:hidden -mx-4 sm:-mx-8 px-4 sm:px-8 mb-6 overflow-x-auto"
+          aria-label="Primary"
+        >
+          <div className="flex items-center gap-1.5 w-max pb-1">
+            {links.map((link) => {
+              const isActive = location.pathname === link.path;
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`px-3.5 py-2 rounded-full text-[13px] whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${
+                    isActive
+                      ? 'bg-brand-primary/12 text-brand-primary font-semibold'
+                      : 'text-text-secondaryLight dark:text-text-secondaryDark font-medium hover:bg-black/[0.04] dark:hover:bg-white/[0.04]'
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+
+        <Outlet />
+      </main>
+
+      {/* Mobile: app-style bottom navigation, icons only, safe-area aware */}
+      <nav
+        className="sm:hidden fixed bottom-0 inset-x-0 z-40 backdrop-blur-xl bg-background-light/90 dark:bg-background-dark/90 border-t border-border-light dark:border-border-dark"
+        aria-label="Primary"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="flex items-stretch justify-around px-1 py-1.5">
           {links.map((link) => {
             const Icon = link.icon;
             const isActive = location.pathname === link.path;
@@ -99,21 +137,23 @@ const DashboardLayout: React.FC = () => {
               <Link
                 key={link.path}
                 to={link.path}
-                className={`flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold uppercase transition-all ${
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={link.label}
+                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl min-w-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${
                   isActive
-                    ? 'bg-white dark:bg-card-dark text-brand-primary shadow-sm border border-border-light dark:border-border-dark'
+                    ? 'text-brand-primary'
                     : 'text-text-secondaryLight dark:text-text-secondaryDark'
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                {link.label}
+                <Icon className="w-[18px] h-[18px] shrink-0" aria-hidden="true" />
+                <span className="text-[9px] font-medium leading-none truncate max-w-[3.5rem]">
+                  {link.label}
+                </span>
               </Link>
             );
           })}
         </div>
-
-        <Outlet />
-      </main>
+      </nav>
     </div>
   );
 };
@@ -139,6 +179,22 @@ function App() {
                 element={
                   <AuthLayout title="Get Started" subtitle="Create your free account and supercharge your budget">
                     <Register />
+                  </AuthLayout>
+                }
+              />
+              <Route
+                path="/forgot-password"
+                element={
+                  <AuthLayout title="Reset Password" subtitle="We'll send you a link to reset your password">
+                    <ForgotPassword />
+                  </AuthLayout>
+                }
+              />
+              <Route
+                path="/reset-password"
+                element={
+                  <AuthLayout title="Set New Password" subtitle="Choose a strong password for your account">
+                    <ResetPassword />
                   </AuthLayout>
                 }
               />

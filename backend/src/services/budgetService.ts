@@ -1,7 +1,9 @@
 import prisma from '../database/prisma';
 import budgetRepository from '../repositories/BudgetRepository';
 import categoryRepository from '../repositories/CategoryRepository';
+import userRepository from '../repositories/UserRepository';
 import { NotFoundError } from '../errors/AppError';
+import { assertAllTransactionsConverted } from '../utils/reportingGuard';
 import { Budget, CategoryType, Prisma, Currency } from '@prisma/client';
 
 export interface BudgetWithStats {
@@ -40,8 +42,12 @@ export class BudgetService {
     startDate: Date,
     endDate: Date
   ): Promise<number> {
+    // Budget amounts are denominated in the account base currency, so spend
+    // must be compared in the same unit.
+    await assertAllTransactionsConverted({ userId });
+
     const aggregate = await prisma.transaction.aggregate({
-      _sum: { amount: true },
+      _sum: { convertedAmount: true },
       where: {
         userId,
         type: CategoryType.EXPENSE,
@@ -50,7 +56,7 @@ export class BudgetService {
       },
     });
 
-    return aggregate._sum.amount ? Number(aggregate._sum.amount) : 0;
+    return aggregate._sum.convertedAmount ? Number(aggregate._sum.convertedAmount) : 0;
   }
 
   /**
@@ -159,7 +165,15 @@ export class BudgetService {
       }
     }
 
+    // Phase 1 multi-currency: budgets are always denominated in the account
+    // base currency, so `spent` (converted) and `amount` share one unit and no
+    // FX happens during budget maths. A client-supplied currency is ignored.
+    const user = await userRepository.findById(userId);
+    if (!user) throw new NotFoundError('User not found');
+    const baseCurrency = (user.baseCurrency ?? user.preferredCurrency) as Currency;
+
     const budget = await budgetRepository.create({
+      currency: baseCurrency,
       amount: new Prisma.Decimal(data.amount),
       startDate: data.startDate,
       endDate: data.endDate,
@@ -238,8 +252,11 @@ export class BudgetService {
       }
     }
 
+    // Currency is not user-editable in this phase.
+    const { currency: _ignoredCurrency, ...safeData } = data;
+
     const updatedBudget = await budgetRepository.update(id, {
-      ...data,
+      ...safeData,
       amount: data.amount !== undefined ? new Prisma.Decimal(data.amount) : undefined,
     });
 

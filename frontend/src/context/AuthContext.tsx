@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { isAxiosError } from 'axios';
 import api from '../services/api';
 
 export interface UserProfile {
@@ -50,8 +51,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const refreshToken = localStorage.getItem('refreshToken');
     if (refreshToken) {
       try {
-        // Fail-silent logout on backend
-        await api.post('/api/auth/logout', { refreshToken });
+        // Path is relative to the axios baseURL ('/api') — do NOT prefix it
+        // again, or this resolves to /api/api/auth/logout and 404s, leaving
+        // the refresh token live on the server.
+        await api.post('/auth/logout', { refreshToken });
       } catch (e) {
         // Silent catch
       }
@@ -89,14 +92,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(JSON.parse(storedUser));
         
         try {
-          // Verify session credentials with backend profile check
-          const response = await api.get('/api/auth/me');
+          // Relative to the axios baseURL ('/api'). Prefixing it again would
+          // resolve to /api/api/auth/me, 404, and log the user out on every
+          // page load despite a perfectly valid session.
+          const response = await api.get('/auth/me');
           setUser(response.data.data.user);
           localStorage.setItem('user', JSON.stringify(response.data.data.user));
         } catch (error) {
-          // If profile fetch fails, session is expired/invalid
-          console.error('Session initialization failed:', error);
-          await logout();
+          // Only a 401 proves the session is actually invalid. A network
+          // failure or a 5xx means the backend is unreachable or unwell —
+          // keep the cached session rather than ejecting the user.
+          if (isAxiosError(error) && error.response?.status === 401) {
+            await logout();
+          } else {
+            console.error('Session verification unavailable, keeping cached session:', error);
+          }
         }
       }
       setIsLoading(false);

@@ -1,3 +1,4 @@
+import { toFiniteNumber } from '../../utils/formatCurrency';
 import React from 'react';
 import { useAnalytics } from '../../services/analytics';
 import { useAuth } from '../../context/AuthContext';
@@ -37,7 +38,11 @@ export const AnalyticsDashboard: React.FC = () => {
   const { basic, averages, smart, cashFlow } = response.data;
   
   const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(val);
+    // Guard the same way the shared formatter does: undefined/NaN/Infinity
+    // would otherwise render as "NaN" on screen.
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(
+      toFiniteNumber(val)
+    );
   };
 
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#f43f5e', '#14b8a6'];

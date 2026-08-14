@@ -1,17 +1,16 @@
 import { User } from '@prisma/client';
 import userRepository from '../repositories/UserRepository';
 import refreshTokenRepository from '../repositories/RefreshTokenRepository';
+import passwordResetTokenRepository from '../repositories/PasswordResetTokenRepository';
+import emailService from './EmailService';
 import { hashPassword, comparePassword } from '../utils/password';
-import {
-  generateAccessToken,
-  generateRefreshToken,
-  verifyRefreshToken,
-  TokenPayload,
-} from '../utils/jwt';
+import { generateSecureToken, hashToken } from '../utils/token';
+import { generateAccessToken, TokenPayload } from '../utils/jwt';
 import {
   ConflictError,
   UnauthorizedError,
   NotFoundError,
+  BadRequestError,
 } from '../errors/AppError';
 
 export interface SanitizedUser {
@@ -37,6 +36,9 @@ export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
 }
+
+// Reset token expiry: 1 hour
+const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000;
 
 export class AuthService {
   /**
@@ -98,36 +100,32 @@ export class AuthService {
 
   /**
    * Refreshes a user's access token and implements Refresh Token Rotation.
+   * The incoming token is opaque, so identity comes from the stored record
+   * rather than from a signature.
    */
   async refresh(tokenString: string): Promise<AuthTokens> {
-    // 1. Verify token signature
-    const decoded = verifyRefreshToken(tokenString);
-    if (!decoded) {
-      throw new UnauthorizedError('Invalid or expired refresh token');
-    }
-
-    // 2. Check token existence in database
-    const storedToken = await refreshTokenRepository.findByToken(tokenString);
+    // 1. Look the session up by hash — raw tokens are never stored
+    const storedToken = await refreshTokenRepository.findByTokenHash(hashToken(tokenString));
     if (!storedToken) {
       throw new UnauthorizedError('Invalid or expired refresh token');
     }
 
-    // 3. Enforce expiration checks
+    // 2. Enforce expiration checks
     if (storedToken.expiresAt < new Date()) {
       await refreshTokenRepository.delete(storedToken.id);
       throw new UnauthorizedError('Refresh token has expired');
     }
 
-    // 4. Retrieve associated user
+    // 3. Retrieve associated user
     const user = await userRepository.findById(storedToken.userId);
     if (!user) {
       throw new UnauthorizedError('User session not found');
     }
 
-    // 5. Rotation: delete the old token first
+    // 4. Rotation: delete the old token first
     await refreshTokenRepository.delete(storedToken.id);
 
-    // 6. Generate and save a brand new token set
+    // 5. Generate and save a brand new token set
     const newTokens = await this.generateUserSession(user);
 
     return newTokens;
@@ -135,13 +133,36 @@ export class AuthService {
 
   /**
    * Revokes a user session by deleting the refresh token from the database.
+   * Never logs the raw token.
    */
   async logout(tokenString: string): Promise<void> {
     try {
-      await refreshTokenRepository.deleteByToken(tokenString);
+      await refreshTokenRepository.deleteByTokenHash(hashToken(tokenString));
     } catch (error) {
       // Fail silently if token doesn't exist, as the session is already terminated
+      console.error('Logout revocation failed for a refresh token (token value withheld)');
     }
+  }
+
+  /**
+   * Revokes every session belonging to a user.
+   * Used after a password change, a password reset, and account deletion.
+   */
+  async revokeAllSessions(userId: string): Promise<void> {
+    await refreshTokenRepository.deleteManyByUserId(userId);
+  }
+
+  /**
+   * Issues a fresh token pair for an already-authenticated user.
+   * Used to keep the caller signed in immediately after their own password
+   * change invalidates every existing session.
+   */
+  async issueSessionForUser(userId: string): Promise<AuthTokens> {
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+    return this.generateUserSession(user);
   }
 
   /**
@@ -153,6 +174,97 @@ export class AuthService {
       throw new NotFoundError('User not found');
     }
     return this.sanitizeUser(user);
+  }
+
+  /**
+   * Initiates a password reset flow.
+   * Always returns void to prevent account enumeration (OWASP).
+   * Sends transactional email to user.
+   */
+  async forgotPassword(email: string): Promise<void> {
+    const user = await userRepository.findByEmail(email);
+
+    // If user doesn't exist, return silently (anti-enumeration)
+    if (!user) {
+      return;
+    }
+
+    // Invalidate any previously issued reset tokens so at most one is live
+    await passwordResetTokenRepository.deleteManyByUserId(user.id);
+
+    // Generate a cryptographically secure random token (32 bytes = 64 hex chars)
+    const rawToken = generateSecureToken();
+
+    // Store only the SHA-256 hash in the database
+    const tokenHash = hashToken(rawToken);
+
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
+
+    // Persist hashed token
+    await passwordResetTokenRepository.create({
+      tokenHash,
+      expiresAt,
+      userId: user.id,
+    });
+
+    // Send transactional password reset email.
+    //
+    // SECURITY: delivery failure must NEVER change the externally observable
+    // response. Letting this throw made the endpoint return 500 for real
+    // accounts and 200 for unknown ones — a perfect account-enumeration
+    // oracle. The failure is logged server-side and swallowed here so the
+    // controller returns the same generic success either way.
+    try {
+      await emailService.sendPasswordResetEmail(user.email, rawToken);
+    } catch (error) {
+      console.error(
+        '[forgotPassword] Password reset email delivery failed:',
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+  }
+
+  /**
+   * Resets a user's password using a valid reset token.
+   * Does NOT auto-login the user (OWASP recommendation).
+   */
+  async resetPassword(rawToken: string, newPassword: string): Promise<void> {
+    // 1. Hash the incoming token to compare against stored hash
+    const tokenHash = hashToken(rawToken);
+
+    // 2. Look up the token
+    const storedToken = await passwordResetTokenRepository.findByTokenHash(tokenHash);
+    if (!storedToken) {
+      throw new BadRequestError('Invalid or expired password reset token');
+    }
+
+    // 3. Check if token has already been used
+    if (storedToken.usedAt) {
+      throw new BadRequestError('This password reset link has already been used');
+    }
+
+    // 4. Check expiration
+    if (storedToken.expiresAt < new Date()) {
+      throw new BadRequestError('This password reset link has expired');
+    }
+
+    // 5. Retrieve the associated user
+    const user = await userRepository.findById(storedToken.userId);
+    if (!user) {
+      throw new BadRequestError('Invalid or expired password reset token');
+    }
+
+    // 6. Hash the new password with bcrypt
+    const hashedPassword = await hashPassword(newPassword);
+
+    // 7. Update the user's password
+    await userRepository.update(user.id, { passwordHash: hashedPassword });
+
+    // 8. Mark the reset token as used (single-use enforcement)
+    await passwordResetTokenRepository.markAsUsed(storedToken.id);
+
+    // 9. Invalidate all existing refresh tokens / sessions for this user
+    await refreshTokenRepository.deleteManyByUserId(user.id);
   }
 
   // ==========================================
@@ -182,17 +294,22 @@ export class AuthService {
 
   private async generateUserSession(user: User): Promise<AuthTokens> {
     const payload: TokenPayload = { userId: user.id, email: user.email };
-    
+
     const accessToken = generateAccessToken(payload);
-    const refreshTokenString = generateRefreshToken(payload);
+
+    // Opaque, cryptographically random refresh token. Two tokens generated in
+    // the same second are guaranteed distinct (256 bits of entropy), which is
+    // what makes concurrent logins work.
+    const refreshTokenString = generateSecureToken();
 
     // Calculate expiry date: 30 days from now
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
 
-    // Save refresh token to database
+    // Persist ONLY the hash — the raw token is returned to the client below
+    // and never stored, so the database holds no usable credential.
     await refreshTokenRepository.create({
-      token: refreshTokenString,
+      tokenHash: hashToken(refreshTokenString),
       expiresAt,
       userId: user.id,
     });

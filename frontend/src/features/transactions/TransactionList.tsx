@@ -269,7 +269,7 @@ export const TransactionList: React.FC = () => {
       </div>
 
       {/* Ledger listing container */}
-      <div className="bg-white dark:bg-card-dark p-6 rounded-3xl border border-border-light dark:border-border-dark shadow-premium dark:shadow-premium-dark relative min-h-[300px]">
+      <div className="bg-white dark:bg-card-dark p-6 rounded-3xl border border-border-light dark:border-border-dark shadow-premium dark:shadow-premium-dark relative">
         {listLoading ? (
           // Skeletons list
           <div className="space-y-4 py-4 animate-pulse">
@@ -367,6 +367,8 @@ export const TransactionList: React.FC = () => {
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsCreateOpen(false)} />
           <div className="bg-white dark:bg-card-dark p-8 rounded-3xl border border-border-light dark:border-border-dark shadow-premium-dark w-full max-w-lg relative animate-slide-up pointer-events-auto">
             <button
+              type="button"
+              aria-label="Close"
               onClick={() => setIsCreateOpen(false)}
               className="absolute top-4 right-4 p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111622] text-text-secondaryLight"
             >
@@ -390,6 +392,8 @@ export const TransactionList: React.FC = () => {
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedEdit(null)} />
           <div className="bg-white dark:bg-card-dark p-8 rounded-3xl border border-border-light dark:border-border-dark shadow-premium-dark w-full max-w-lg relative animate-slide-up pointer-events-auto">
             <button
+              type="button"
+              aria-label="Close"
               onClick={() => setSelectedEdit(null)}
               className="absolute top-4 right-4 p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111622] text-text-secondaryLight"
             >

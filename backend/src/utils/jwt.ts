@@ -20,17 +20,18 @@ export function generateAccessToken(payload: TokenPayload): string {
 }
 
 /**
- * Generates a Refresh Token with a long lifespan.
- * @param payload User identity information.
- * @returns The signed JWT string.
+ * NOTE: Refresh tokens are no longer JWTs.
+ *
+ * A signed JWT whose only claims were `sub`, `email`, `iat` and `exp` was
+ * byte-identical for two tokens minted in the same second, which collided
+ * with the unique constraint on the stored token and failed concurrent
+ * logins with a 409. Refresh tokens are looked up in the database anyway,
+ * so the signature bought nothing.
+ *
+ * They are now opaque random tokens — see utils/token.ts — stored as a
+ * SHA-256 hash. `JWT_REFRESH_SECRET` is retained in the environment schema
+ * for backward compatibility with existing deployments.
  */
-export function generateRefreshToken(payload: TokenPayload): string {
-  return jwt.sign(
-    { sub: payload.userId, email: payload.email },
-    env.JWT_REFRESH_SECRET,
-    { expiresIn: '30d' }
-  );
-}
 
 /**
  * Verifies an Access Token signature and retrieves the decoded payload.
@@ -49,19 +50,3 @@ export function verifyAccessToken(token: string): TokenPayload | null {
   }
 }
 
-/**
- * Verifies a Refresh Token signature and retrieves the decoded payload.
- * @param token The incoming Refresh JWT.
- * @returns The decoded payload or null if invalid.
- */
-export function verifyRefreshToken(token: string): TokenPayload | null {
-  try {
-    const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET) as any;
-    return {
-      userId: decoded.sub,
-      email: decoded.email,
-    };
-  } catch (error) {
-    return null;
-  }
-}

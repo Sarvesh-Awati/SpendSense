@@ -8,7 +8,7 @@ import {
   deleteAccount, 
   exportData 
 } from '../controllers/userController';
-import { updateProfileSchema, changePasswordSchema } from '../validators/user';
+import { updateProfileSchema, changePasswordSchema, deleteAccountSchema } from '../validators/user';
 
 const router = Router();
 
@@ -18,6 +18,7 @@ router.put('/profile', validate(updateProfileSchema), updateProfile);
 router.post('/change-password', validate(changePasswordSchema), changePassword);
 router.post('/logout-all', logoutAllDevices);
 router.get('/export', exportData);
-router.delete('/account', deleteAccount);
+// Requires currentPassword in the body — see deleteAccountSchema.
+router.delete('/account', validate(deleteAccountSchema), deleteAccount);
 
 export default router;

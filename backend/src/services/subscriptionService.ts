@@ -2,8 +2,14 @@ import subscriptionRepository from '../repositories/SubscriptionRepository';
 import { Subscription, SubscriptionFrequency, Currency } from '@prisma/client';
 import { NotFoundError, BadRequestError } from '../errors/AppError';
 import { Decimal } from '@prisma/client/runtime/library';
+import userRepository from '../repositories/UserRepository';
+import currencyService from './currencyService';
 
 export interface SubscriptionStats {
+  /** Monthly equivalent expressed in the account base currency, or null when
+   *  no current rate is available. Callers MUST handle null rather than
+   *  treating a foreign amount as a base-currency amount. */
+  monthlyEquivalentInBase: number | null;
   id: string;
   name: string;
   amount: number;
@@ -90,7 +96,10 @@ export class SubscriptionService {
   /**
    * Helper: Decorate subscription with calculated stats and roll forward overdue renewals
    */
-  private async processSubscription(sub: Subscription & { category?: { name: string; icon: string | null; color: string | null } | null }): Promise<SubscriptionStats> {
+  private async processSubscription(
+    sub: Subscription & { category?: { name: string; icon: string | null; color: string | null } | null },
+    baseCurrency?: Currency
+  ): Promise<SubscriptionStats> {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
@@ -108,9 +117,24 @@ export class SubscriptionService {
     const diffTime = Math.abs(nextRenewal.getTime() - now.getTime());
     const daysUntilRenewal = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
+    // Forward-looking cost: use TODAY's rate, not one frozen at creation.
+    // Null (never a raw foreign amount) when a rate cannot be obtained.
+    let monthlyEquivalentInBase: number | null = null;
+    if (!baseCurrency || sub.currency === baseCurrency) {
+      monthlyEquivalentInBase = Number(monthlyCost.toFixed(2));
+    } else {
+      try {
+        const rate = await currencyService.getRate(sub.currency, baseCurrency, new Date());
+        monthlyEquivalentInBase = Number(Number(rate.mul(monthlyCost).toFixed(2)));
+      } catch {
+        monthlyEquivalentInBase = null;
+      }
+    }
+
     return {
       id: sub.id,
       name: sub.name,
+      monthlyEquivalentInBase,
       amount: Number(sub.amount),
       currency: sub.currency,
       frequency: sub.frequency,
@@ -160,7 +184,9 @@ export class SubscriptionService {
    */
   async getSubscriptions(userId: string): Promise<SubscriptionStats[]> {
     const subs = await subscriptionRepository.findByUserId(userId);
-    return Promise.all(subs.map(sub => this.processSubscription(sub)));
+    const user = await userRepository.findById(userId);
+    const baseCurrency = (user?.baseCurrency ?? user?.preferredCurrency) as Currency | undefined;
+    return Promise.all(subs.map(sub => this.processSubscription(sub, baseCurrency)));
   }
 
   /**

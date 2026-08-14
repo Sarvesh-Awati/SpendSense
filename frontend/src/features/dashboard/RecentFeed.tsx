@@ -1,114 +1,129 @@
 import React, { useState } from 'react';
-import { Eye, DollarSign, Calendar, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Receipt, ArrowDownLeft, ArrowUpRight, RefreshCw } from 'lucide-react';
 import TransactionDetails from '../transactions/TransactionDetails';
 import { formatCurrency } from '../../utils/formatCurrency';
+import Card, { PanelHead } from '../../components/ui/Card';
+import EmptyState from '../../components/ui/EmptyState';
 
 interface RecentFeedProps {
   transactions: any[];
+  onAddTransaction?: () => void;
 }
 
-export const RecentFeed: React.FC<RecentFeedProps> = ({ transactions }) => {
+export const RecentFeed: React.FC<RecentFeedProps> = ({ transactions, onAddTransaction }) => {
   const [selectedDetails, setSelectedDetails] = useState<any | null>(null);
 
+  // Relative labels for the two most recent days, absolute beyond that.
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+    const date = new Date(dateStr);
+    const today = new Date();
+    const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const dayDiff = Math.round((startOf(today) - startOf(date)) / 86_400_000);
 
-  const formatCurrencyLocal = (amount: number, type: 'INCOME' | 'EXPENSE', currency: string) => {
-    const formatted = formatCurrency(amount, currency);
-    return type === 'INCOME' ? `+ ${formatted}` : `- ${formatted}`;
+    if (dayDiff === 0) return 'Today';
+    if (dayDiff === 1) return 'Yesterday';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   return (
-    <div className="bg-white dark:bg-card-dark p-6 rounded-3xl border border-border-light dark:border-border-dark shadow-premium dark:shadow-premium-dark text-left space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="font-outfit text-base font-bold tracking-tight">Recent Activity</h3>
-          <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-0.5">
-            Your last 5 ledger entries
-          </p>
-        </div>
-      </div>
+    <Card tone="bare" tier="secondary" className="h-full flex flex-col">
+      <PanelHead
+        label="Recent Transactions"
+        action={
+          transactions.length > 0 ? (
+            <Link
+              to="/transactions"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-primary hover:gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 rounded transition-all"
+            >
+              View all
+              <ArrowRight className="w-3 h-3" aria-hidden="true" />
+            </Link>
+          ) : undefined
+        }
+      />
 
-      <div className="divide-y divide-border-light/40 dark:divide-border-dark/40">
-        {transactions.length === 0 ? (
-          <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark italic py-8 text-center">
-            No logged transactions.
-          </p>
-        ) : (
-          transactions.map((tx) => {
+      {transactions.length === 0 ? (
+        <div className="flex-grow flex items-center justify-center">
+          <EmptyState
+            icon={Receipt}
+            title="No transactions yet"
+            description="Add your first transaction to start tracking."
+            actionLabel="Add Transaction"
+            onAction={onAddTransaction}
+            size="compact"
+          />
+        </div>
+      ) : (
+        <ul className="mt-4 -mx-2">
+          {transactions.map((tx) => {
             const isIncome = tx.type === 'INCOME';
-            const categoryColor = tx.category?.color || '#cbd5e1';
+            const color = tx.category?.color || '#94a3b8';
             const categoryName = tx.category?.name || 'Uncategorized';
+            const DirectionIcon = isIncome ? ArrowDownLeft : ArrowUpRight;
 
             return (
-              <div
-                key={tx.id}
-                className="flex items-center justify-between py-3.5 hover:bg-slate-50/40 dark:hover:bg-[#111622]/20 px-2 rounded-xl transition-all group"
-              >
-                <div className="flex items-center gap-3">
-                  {/* Category Indicator Accent */}
-                  <div
-                    className="w-1.5 h-8 rounded-full"
-                    style={{ backgroundColor: categoryColor }}
-                  />
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-text-primaryLight dark:text-text-primaryDark truncate max-w-[150px]">
-                      {tx.merchant || 'Unknown Merchant'}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-text-secondaryLight dark:text-text-secondaryDark">
-                      <span className="font-semibold" style={{ color: categoryColor }}>{categoryName}</span>
-                      <span>•</span>
-                      <span className="flex items-center gap-0.5">
-                        <Calendar className="w-2.5 h-2.5" />
-                        {formatDate(tx.date)}
+              <li key={tx.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetails(tx)}
+                  className="w-full flex items-center justify-between gap-3 py-3 px-2 rounded-panel text-left hover:bg-black/[0.03] dark:hover:bg-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 transition-colors"
+                >
+                  <span className="flex items-center gap-3 min-w-0">
+                    {/* Small circular category token */}
+                    <span
+                      className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: `${color}1f`, color }}
+                    >
+                      <DirectionIcon className="w-4 h-4" aria-hidden="true" />
+                    </span>
+
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium truncate text-text-primaryLight dark:text-text-primaryDark">
+                        {tx.merchant || tx.description || 'Untitled'}
                       </span>
-                      {tx.isSubscription && (
-                        <>
-                          <span>•</span>
-                          <span className="flex items-center gap-0.5 text-brand-secondary">
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            Sub
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <span className={`font-semibold font-outfit text-sm ${
-                    isIncome ? 'text-finance-income' : 'text-text-primaryLight dark:text-text-primaryDark'
-                  }`}>
-                    {formatCurrencyLocal(Number(tx.amount), tx.type, tx.currency)}
+                      <span className="flex items-center gap-1.5 text-[11px] text-text-secondaryLight dark:text-text-secondaryDark mt-0.5">
+                        <span className="truncate max-w-[9rem]">{categoryName}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="whitespace-nowrap">{formatDate(tx.date)}</span>
+                        {tx.baseCurrency && tx.currency !== tx.baseCurrency && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span
+                              className="whitespace-nowrap"
+                              title={`Converted at 1 ${tx.currency} = ${tx.exchangeRate} ${tx.baseCurrency}`}
+                            >
+                              {tx.currency}
+                            </span>
+                          </>
+                        )}
+                        {tx.isSubscription && (
+                          <RefreshCw className="w-2.5 h-2.5 text-brand-secondary shrink-0" aria-label="Subscription" />
+                        )}
+                      </span>
+                    </span>
                   </span>
-                  
-                  {/* Quick Detail View Trigger */}
-                  <button
-                    onClick={() => setSelectedDetails(tx)}
-                    className="p-1.5 rounded-lg border border-border-light dark:border-border-dark opacity-0 group-hover:opacity-100 bg-white dark:bg-card-dark text-text-secondaryLight hover:text-text-primaryLight dark:hover:text-text-primaryDark transition-all cursor-pointer"
-                    title="View Details"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
 
-      {/* Details Modal Overlay */}
-      {selectedDetails && (
-        <TransactionDetails
-          transaction={selectedDetails}
-          onClose={() => setSelectedDetails(null)}
-        />
+                  <span
+                    className={`font-outfit text-sm font-semibold tnum whitespace-nowrap shrink-0 ${
+                      isIncome ? 'text-brand-primary' : 'text-text-primaryLight dark:text-text-primaryDark'
+                    }`}
+                  >
+                    {isIncome ? '+' : '−'}
+                    {formatCurrency(Number(tx.amount), tx.currency)}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
-    </div>
+
+      {selectedDetails && (
+        <TransactionDetails transaction={selectedDetails} onClose={() => setSelectedDetails(null)} />
+      )}
+    </Card>
   );
 };
+
 export default RecentFeed;

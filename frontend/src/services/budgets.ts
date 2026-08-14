@@ -45,27 +45,27 @@ export interface BudgetStatsResponse {
 
 // REST Requests
 export const getBudgets = async (): Promise<{ status: string; data: { budgets: BudgetStatsResponse[] } }> => {
-  const response = await api.get('/api/budgets');
+  const response = await api.get('/budgets');
   return response.data;
 };
 
 export const getBudget = async (id: string): Promise<{ status: string; data: { budget: BudgetStatsResponse } }> => {
-  const response = await api.get(`/api/budgets/${id}`);
+  const response = await api.get(`/budgets/${id}`);
   return response.data;
 };
 
 export const createBudget = async (data: CreateBudgetInput) => {
-  const response = await api.post('/api/budgets', data);
+  const response = await api.post('/budgets', data);
   return response.data;
 };
 
 export const updateBudget = async ({ id, data }: { id: string; data: UpdateBudgetInput }) => {
-  const response = await api.put(`/api/budgets/${id}`, data);
+  const response = await api.put(`/budgets/${id}`, data);
   return response.data;
 };
 
 export const deleteBudget = async (id: string) => {
-  const response = await api.delete(`/api/budgets/${id}`);
+  const response = await api.delete(`/budgets/${id}`);
   return response.data;
 };
 

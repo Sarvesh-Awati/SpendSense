@@ -1,11 +1,21 @@
 import { z } from 'zod';
 import { CategoryType } from '@prisma/client';
 
+/**
+ * Shared currency enum. Previously `currency` was declared on the update schema
+ * but omitted from create, so Zod stripped it and every new transaction was
+ * silently stored as the INR default regardless of what the client sent.
+ */
+const currencySchema = z.enum(['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD', 'JPY', 'CNY', 'SGD', 'AED'], {
+  errorMap: () => ({ message: 'Unsupported currency code' }),
+});
+
 export const createTransactionSchema = z.object({
   body: z.object({
     amount: z
       .number({ required_error: 'Amount is required' })
       .positive({ message: 'Amount must be a positive number' }),
+    currency: currencySchema.optional(),
     description: z.string().trim().optional().nullable(),
     merchant: z.string().trim().optional().nullable(),
     date: z.coerce.date({
@@ -27,7 +37,7 @@ export const createTransactionSchema = z.object({
 export const updateTransactionSchema = z.object({
   body: z.object({
     amount: z.number().positive({ message: 'Amount must be a positive number' }).optional(),
-    currency: z.enum(['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD', 'JPY', 'CNY', 'SGD', 'AED']).optional(),
+    currency: currencySchema.optional(),
     description: z.string().trim().optional().nullable(),
     merchant: z.string().trim().optional().nullable(),
     date: z.coerce.date({ invalid_type_error: 'Invalid date format' }).optional(),

@@ -2,6 +2,7 @@ import prisma from '../database/prisma';
 import { CategoryType, Transaction } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import aiService from './aiService';
+import { assertAllTransactionsConverted } from '../utils/reportingGuard';
 
 const safeDecimal = (val: Decimal | number | null | undefined): number => {
   if (val === null || val === undefined) return 0;
@@ -47,6 +48,8 @@ export interface AnalyticsData {
 
 export class AnalyticsService {
   async getAnalytics(userId: string): Promise<AnalyticsData> {
+    await assertAllTransactionsConverted({ userId });
+
     const now = new Date();
     
     // Fetch all user transactions to do comprehensive analysis
@@ -88,7 +91,7 @@ export class AnalyticsService {
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
     for (const tx of allTransactions) {
-      const amount = safeDecimal(tx.amount);
+      const amount = safeDecimal(tx.convertedAmount);
       const monthKey = getMonthKey(tx.date);
       const dateKey = getDateKey(tx.date);
       const dayOfWeek = tx.date.getDay(); // 0 = Sunday, 6 = Saturday
@@ -190,9 +193,9 @@ export class AnalyticsService {
       const mk = getMonthKey(tx.date);
       const catName = categoryMap.get(tx.categoryId) || 'Unknown';
       if (mk === currentMonthKey) {
-        curMonthCat.set(catName, (curMonthCat.get(catName) || 0) + safeDecimal(tx.amount));
+        curMonthCat.set(catName, (curMonthCat.get(catName) || 0) + safeDecimal(tx.convertedAmount));
       } else if (mk === prevMonthKey) {
-        prevMonthCat.set(catName, (prevMonthCat.get(catName) || 0) + safeDecimal(tx.amount));
+        prevMonthCat.set(catName, (prevMonthCat.get(catName) || 0) + safeDecimal(tx.convertedAmount));
       }
     }
     
@@ -215,7 +218,7 @@ export class AnalyticsService {
     // Largest Expenses
     const largestExpenses = allTransactions
       .filter(tx => tx.type === CategoryType.EXPENSE)
-      .sort((a, b) => safeDecimal(b.amount) - safeDecimal(a.amount))
+      .sort((a, b) => safeDecimal(b.convertedAmount) - safeDecimal(a.convertedAmount))
       .slice(0, 10);
       
     // Averages

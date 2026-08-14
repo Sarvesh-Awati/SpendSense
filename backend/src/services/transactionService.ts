@@ -1,11 +1,42 @@
-import { Transaction, CategoryType, Currency } from '@prisma/client';
+import { Currency, CategoryType, Prisma } from '@prisma/client';
 import transactionRepository, { TransactionFilters } from '../repositories/TransactionRepository';
 import categoryRepository from '../repositories/CategoryRepository';
-import { NotFoundError } from '../errors/AppError';
+import userRepository from '../repositories/UserRepository';
+import currencyService from './currencyService';
+import { NotFoundError, AppError } from '../errors/AppError';
+import {
+  serializeTransaction,
+  serializeTransactions,
+  SerializedTransaction,
+} from '../utils/serializeTransaction';
+import { toDecimal } from '../utils/money';
 
 export class TransactionService {
   /**
-   * Creates a new transaction for the authenticated user.
+   * The account's canonical reporting currency.
+   * `baseCurrency` is nullable only so existing rows could be backfilled;
+   * falling back to preferredCurrency keeps any unbackfilled account working.
+   */
+  private async resolveBaseCurrency(userId: string): Promise<Currency> {
+    const user = await userRepository.findById(userId);
+    if (!user) throw new NotFoundError('User not found');
+    return (user.baseCurrency ?? user.preferredCurrency) as Currency;
+  }
+
+  private async assertCategoryAccessible(userId: string, categoryId: string): Promise<void> {
+    const category = await categoryRepository.findById(categoryId);
+    if (!category || (category.userId && category.userId !== userId)) {
+      throw new NotFoundError('Category not found');
+    }
+  }
+
+  /**
+   * Creates a transaction, deriving and persisting its conversion atomically.
+   *
+   * Same currency as the account base => rate 1, no provider call.
+   * Different currency => priced at the transaction's OWN date, so historical
+   * entries convert historically. If no trustworthy rate exists the create
+   * fails closed (503) rather than storing a wrong financial record.
    */
   async create(
     userId: string,
@@ -21,22 +52,31 @@ export class TransactionService {
       isSubscription?: boolean;
       receiptId?: string | null;
     }
-  ): Promise<Transaction> {
-    // Verify the category exists and belongs to this user (or is system default)
-    const category = await categoryRepository.findById(data.categoryId);
-    if (!category || (category.userId && category.userId !== userId)) {
-      throw new NotFoundError('Category not found');
-    }
+  ): Promise<SerializedTransaction> {
+    await this.assertCategoryAccessible(userId, data.categoryId);
 
-    return transactionRepository.create({
+    const baseCurrency = await this.resolveBaseCurrency(userId);
+    const currency = (data.currency ?? baseCurrency) as Currency;
+
+    const conversion = await currencyService.resolveConversion(
+      toDecimal(data.amount),
+      currency,
+      baseCurrency,
+      data.date
+    );
+
+    const created = await transactionRepository.create({
       ...data,
+      currency,
+      baseCurrency: conversion.baseCurrency,
+      exchangeRate: conversion.exchangeRate,
+      convertedAmount: conversion.convertedAmount,
       userId,
     });
+
+    return serializeTransaction(created);
   }
 
-  /**
-   * Retrieves a filtered, paginated list of transactions for the user.
-   */
   async findAll(
     userId: string,
     query: {
@@ -63,30 +103,26 @@ export class TransactionService {
     );
 
     return {
-      transactions,
-      pagination: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
-      },
+      transactions: serializeTransactions(transactions),
+      pagination: { total, page, limit, pages: Math.ceil(total / limit) },
     };
   }
 
-  /**
-   * Retrieves a single transaction, ensuring it belongs to the authenticated user.
-   */
-  async findById(userId: string, id: string): Promise<Transaction> {
+  async findById(userId: string, id: string): Promise<SerializedTransaction> {
     const transaction = await transactionRepository.findById(id);
     if (!transaction || transaction.userId !== userId) {
       throw new NotFoundError('Transaction not found');
     }
-
-    return transaction;
+    return serializeTransaction(transaction);
   }
 
   /**
-   * Updates a transaction, ensuring user ownership.
+   * Updates a transaction, re-deriving conversion only when it must.
+   *
+   *  - amount changes, currency unchanged -> reuse the STORED rate. Never
+   *    re-price history at today's rate.
+   *  - currency changes -> obtain a rate for the transaction's own date.
+   *  - neither changes -> conversion fields are left untouched.
    */
   async update(
     userId: string,
@@ -103,34 +139,76 @@ export class TransactionService {
       isSubscription: boolean;
       receiptId: string | null;
     }>
-  ): Promise<Transaction> {
-    // 1. Enforce transaction ownership
-    const transaction = await transactionRepository.findById(id);
-    if (!transaction || transaction.userId !== userId) {
+  ): Promise<SerializedTransaction> {
+    const existing = await transactionRepository.findById(id);
+    if (!existing || existing.userId !== userId) {
       throw new NotFoundError('Transaction not found');
     }
 
-    // 2. Validate category ownership if it is being modified
     if (data.categoryId) {
-      const category = await categoryRepository.findById(data.categoryId);
-      if (!category || (category.userId && category.userId !== userId)) {
-        throw new NotFoundError('Category not found');
+      await this.assertCategoryAccessible(userId, data.categoryId);
+    }
+
+    const amountChanged = data.amount !== undefined;
+    const currencyChanged = data.currency !== undefined && data.currency !== existing.currency;
+    const effectiveDate = data.date ?? existing.date;
+
+    let conversionPatch: {
+      baseCurrency?: Currency;
+      exchangeRate?: Prisma.Decimal;
+      convertedAmount?: Prisma.Decimal;
+    } = {};
+
+    if (currencyChanged) {
+      // Currency changed: price it at the transaction's own date.
+      const baseCurrency = await this.resolveBaseCurrency(userId);
+      const nextAmount = data.amount ?? existing.amount;
+      const conversion = await currencyService.resolveConversion(
+        toDecimal(nextAmount as any),
+        data.currency as Currency,
+        baseCurrency,
+        effectiveDate
+      );
+      conversionPatch = {
+        baseCurrency: conversion.baseCurrency,
+        exchangeRate: conversion.exchangeRate,
+        convertedAmount: conversion.convertedAmount,
+      };
+    } else if (amountChanged) {
+      // Amount only: reuse the rate already on the record.
+      if (existing.exchangeRate == null || existing.baseCurrency == null) {
+        // Unconverted legacy row — derive once rather than guess.
+        const baseCurrency = await this.resolveBaseCurrency(userId);
+        const conversion = await currencyService.resolveConversion(
+          toDecimal(data.amount as number),
+          existing.currency,
+          baseCurrency,
+          effectiveDate
+        );
+        conversionPatch = {
+          baseCurrency: conversion.baseCurrency,
+          exchangeRate: conversion.exchangeRate,
+          convertedAmount: conversion.convertedAmount,
+        };
+      } else {
+        conversionPatch = {
+          convertedAmount: currencyService.recomputeWithStoredRate(
+            toDecimal(data.amount as number),
+            existing.exchangeRate
+          ),
+        };
       }
     }
 
-    return transactionRepository.update(id, data);
+    const updated = await transactionRepository.update(id, { ...data, ...conversionPatch });
+    return serializeTransaction(updated);
   }
 
-  /**
-   * Permanently deletes a transaction, enforcing ownership checks.
-   */
-  async delete(userId: string, id: string): Promise<Transaction> {
-    // Enforce transaction ownership
+  async delete(userId: string, id: string) {
     const transaction = await transactionRepository.findById(id);
     if (!transaction || transaction.userId !== userId) {
       throw new NotFoundError('Transaction not found');
     }
-
     return transactionRepository.delete(id);
   }
 }

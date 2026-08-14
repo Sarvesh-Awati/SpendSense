@@ -4,6 +4,10 @@ import rateLimit from 'express-rate-limit';
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 15, // Limit each IP to 15 requests per `window`
+  // Integration tests drive dozens of auth requests from a single address.
+  // Gated strictly on NODE_ENV=test, which is operator-controlled — this can
+  // never be turned off by a client.
+  skip: () => process.env.NODE_ENV === 'test',
   message: {
     status: 'error',
     statusCode: 429,

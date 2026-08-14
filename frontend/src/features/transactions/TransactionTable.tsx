@@ -116,25 +116,29 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
 
                 {/* Action Buttons */}
                 <td className="py-4 px-4 text-right">
-                  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Always visible on touch/small screens; hover- or focus-revealed on desktop */}
+                  <div className="flex items-center justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
                     <button
                       onClick={() => onViewDetails(tx)}
-                      className="p-1.5 rounded-lg text-text-secondaryLight dark:text-text-secondaryDark hover:bg-slate-100 dark:hover:bg-[#111622] hover:text-text-primaryLight dark:hover:text-text-primaryDark transition-colors"
+                      className="p-1.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/60 text-text-secondaryLight dark:text-text-secondaryDark hover:bg-slate-100 dark:hover:bg-[#111622] hover:text-text-primaryLight dark:hover:text-text-primaryDark transition-colors"
                       title="View Details"
+                      aria-label={`View details for ${tx.merchant || tx.description || "transaction"}`}
                     >
                       <Eye className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onEdit(tx)}
-                      className="p-1.5 rounded-lg text-text-secondaryLight dark:text-text-secondaryDark hover:bg-slate-100 dark:hover:bg-[#111622] hover:text-brand-secondary transition-colors"
+                      className="p-1.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/60 text-text-secondaryLight dark:text-text-secondaryDark hover:bg-slate-100 dark:hover:bg-[#111622] hover:text-brand-secondary transition-colors"
                       title="Edit"
+                      aria-label={`Edit ${tx.merchant || tx.description || "transaction"}`}
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => onDelete(tx)}
-                      className="p-1.5 rounded-lg text-text-secondaryLight dark:text-text-secondaryDark hover:bg-slate-100 dark:hover:bg-[#111622] hover:text-finance-expense transition-colors"
+                      className="p-1.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/60 text-text-secondaryLight dark:text-text-secondaryDark hover:bg-slate-100 dark:hover:bg-[#111622] hover:text-finance-expense transition-colors"
                       title="Delete"
+                      aria-label={`Delete ${tx.merchant || tx.description || "transaction"}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

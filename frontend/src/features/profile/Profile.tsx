@@ -47,6 +47,11 @@ export const Profile: React.FC = () => {
     confirmPassword: '',
   });
 
+  // Account deletion re-authenticates server-side, so we must collect the
+  // password rather than relying on the confirmation dialog alone.
+  const [deletePassword, setDeletePassword] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -79,7 +84,13 @@ export const Profile: React.FC = () => {
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    handleUpdate('Profile', formData);
+    // Send only the fields this endpoint is allowed to change. Email is
+    // read-only and is deliberately not submitted.
+    handleUpdate('Profile', {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      profilePictureUrl: formData.profilePictureUrl,
+    });
   };
 
   const handlePreferencesSubmit = (e: React.FormEvent) => {
@@ -141,13 +152,22 @@ export const Profile: React.FC = () => {
   };
 
   const handleDeleteAccount = async () => {
-    if (window.confirm('Are you sure you want to permanently delete your account? This action cannot be undone.')) {
-      try {
-        await deleteAccount();
-        logout();
-      } catch (err: any) {
-        toast('Failed to delete account', 'error');
-      }
+    if (!deletePassword) {
+      toast('Enter your password to confirm deletion', 'error');
+      return;
+    }
+    if (!window.confirm('Are you sure you want to permanently delete your account? This action cannot be undone.')) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      await deleteAccount(deletePassword);
+      setDeletePassword('');
+      logout();
+    } catch (err: any) {
+      toast(err.response?.data?.message || 'Failed to delete account', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -599,14 +619,39 @@ export const Profile: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-between p-5 rounded-2xl border border-finance-expense/30 bg-finance-expense/5 gap-4">
+                <div className="p-5 rounded-2xl border border-finance-expense/30 bg-finance-expense/5 space-y-4">
                   <div>
                     <h4 className="text-sm font-bold text-finance-expense">Delete Account</h4>
                     <p className="text-xs text-finance-expense/80 mt-1">Permanently delete your account and all of your content. This action cannot be undone.</p>
                   </div>
-                  <button onClick={handleDeleteAccount} className="px-5 py-2.5 rounded-xl bg-finance-expense text-white text-sm font-semibold flex items-center gap-2 hover:bg-red-600 transition-colors whitespace-nowrap">
-                    <Trash2 className="w-4 h-4" /> Delete Account
-                  </button>
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                    <div className="flex-1">
+                      <label htmlFor="deletePassword" className="block text-xs font-semibold uppercase tracking-wider text-finance-expense/80 mb-2">
+                        Confirm your password
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-finance-expense/50">
+                          <Lock className="w-4 h-4" />
+                        </div>
+                        <input
+                          id="deletePassword"
+                          type="password"
+                          autoComplete="current-password"
+                          value={deletePassword}
+                          onChange={e => setDeletePassword(e.target.value)}
+                          placeholder="Current password"
+                          className="w-full pl-11 pr-4 py-3 rounded-xl border border-finance-expense/30 bg-white dark:bg-[#111622] text-sm focus:outline-none focus:border-finance-expense transition-all"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={isDeleting || !deletePassword}
+                      className="px-5 py-3 rounded-xl bg-finance-expense text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-red-600 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Delete Account
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

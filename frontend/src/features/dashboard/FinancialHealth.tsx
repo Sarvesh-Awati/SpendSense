@@ -1,104 +1,105 @@
-import React from 'react';
-import { HeartPulse, Zap } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import Card, { SectionLabel } from '../../components/ui/Card';
 
 interface FinancialHealthProps {
   score: number;
   status: 'Excellent' | 'Good' | 'Fair' | 'Needs Attention';
-  insights: string[];
 }
 
-export const FinancialHealth: React.FC<FinancialHealthProps> = ({ score, status, insights }) => {
-  // Determine color based on status
-  let colorClass = 'text-brand-primary bg-brand-primary/10 border-brand-primary/20';
-  let gradientClass = 'from-brand-primary to-brand-secondary';
-  
-  if (status === 'Excellent') {
-    colorClass = 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20';
-    gradientClass = 'from-emerald-400 to-emerald-600';
-  } else if (status === 'Good') {
-    colorClass = 'text-blue-500 bg-blue-500/10 border-blue-500/20';
-    gradientClass = 'from-blue-400 to-blue-600';
-  } else if (status === 'Fair') {
-    colorClass = 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-    gradientClass = 'from-amber-400 to-amber-600';
-  } else if (status === 'Needs Attention') {
-    colorClass = 'text-rose-500 bg-rose-500/10 border-rose-500/20';
-    gradientClass = 'from-rose-400 to-rose-600';
-  }
+const STATUS_STROKE: Record<FinancialHealthProps['status'], string> = {
+  Excellent: '#10b981',
+  Good: '#10b981',
+  Fair: '#f59e0b',
+  'Needs Attention': '#f43f5e',
+};
+
+/**
+ * Factual list of the score's inputs, mirroring the weighting the backend
+ * applies in dashboardService. Not personalised advice.
+ */
+const FACTORS = ['Savings', 'Budgets', 'Subscriptions', 'Cash flow'];
+
+export const FinancialHealth: React.FC<FinancialHealthProps> = ({ score, status }) => {
+  const stroke = STATUS_STROKE[status];
+
+  const RADIUS = 46;
+  const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+  const [drawn, setDrawn] = useState(0);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setDrawn(score));
+    return () => cancelAnimationFrame(frame);
+  }, [score]);
+
+  const clamped = Math.max(0, Math.min(100, drawn));
+  const offset = CIRCUMFERENCE - (CIRCUMFERENCE * clamped) / 100;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {/* Health Score Card */}
-      <div className="p-6 rounded-3xl border border-border-light dark:border-border-dark bg-white dark:bg-card-dark flex flex-col justify-center items-center relative overflow-hidden shadow-sm">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/5 rounded-full -mr-10 -mt-10 blur-xl"></div>
-        <div className="absolute bottom-0 left-0 w-24 h-24 bg-brand-secondary/5 rounded-full -ml-10 -mb-10 blur-xl"></div>
-        
-        <h2 className="text-sm font-bold text-text-secondaryLight dark:text-text-secondaryDark uppercase tracking-wider mb-4 flex items-center gap-2">
-          <HeartPulse className="w-4 h-4" /> Financial Health
-        </h2>
-        
-        <div className="relative mb-2">
-          <svg className="w-32 h-32 transform -rotate-90">
+    <Card tone="bare" tier="secondary" className="h-full flex flex-col">
+      <SectionLabel>Financial Health</SectionLabel>
+
+      <div className="flex items-center gap-6 mt-5">
+        <div className="relative">
+          <svg
+            className="w-[104px] h-[104px] -rotate-90"
+            viewBox="0 0 108 108"
+            role="img"
+            aria-label={`Financial health score ${score} out of 100, rated ${status}`}
+          >
             <circle
-              className="text-slate-100 dark:text-slate-800"
-              strokeWidth="8"
+              className="text-black/[0.06] dark:text-white/[0.07]"
+              strokeWidth="6"
               stroke="currentColor"
               fill="transparent"
-              r="58"
-              cx="64"
-              cy="64"
+              r={RADIUS}
+              cx="54"
+              cy="54"
             />
             <circle
-              className={`text-transparent bg-clip-text drop-shadow-sm transition-all duration-1000 ease-out`}
-              strokeWidth="8"
-              strokeDasharray={364}
-              strokeDashoffset={364 - (364 * score) / 100}
+              strokeWidth="6"
+              strokeDasharray={CIRCUMFERENCE}
+              strokeDashoffset={offset}
               strokeLinecap="round"
-              stroke={`url(#gradient-${status.replace(' ', '')})`}
+              stroke={stroke}
               fill="transparent"
-              r="58"
-              cx="64"
-              cy="64"
+              r={RADIUS}
+              cx="54"
+              cy="54"
+              style={{ transition: 'stroke-dashoffset 1000ms cubic-bezier(0.16, 1, 0.3, 1)' }}
             />
-            <defs>
-              <linearGradient id={`gradient-${status.replace(' ', '')}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor={status === 'Excellent' ? '#10b981' : status === 'Good' ? '#3b82f6' : status === 'Fair' ? '#f59e0b' : '#f43f5e'} />
-                <stop offset="100%" stopColor={status === 'Excellent' ? '#059669' : status === 'Good' ? '#2563eb' : status === 'Fair' ? '#d97706' : '#e11d48'} />
-              </linearGradient>
-            </defs>
           </svg>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-            <span className="text-3xl font-black font-outfit">{score}</span>
+
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="font-outfit text-[34px] font-bold tracking-tight tnum leading-none">
+              {score}
+            </span>
           </div>
         </div>
-        
-        <div className={`mt-2 px-3 py-1 rounded-full text-xs font-bold border ${colorClass}`}>
-          {status}
+
+        <div className="min-w-0">
+          <p
+            className="font-outfit text-[15px] font-bold tracking-[0.04em] uppercase"
+            style={{ color: stroke }}
+          >
+            {status}
+          </p>
+          <p className="text-[11px] text-text-secondaryLight dark:text-text-secondaryDark mt-0.5">
+            {score} / 100
+          </p>
         </div>
       </div>
 
-      {/* Quick Insights Masonry Layout */}
-      <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {insights.map((insight, idx) => (
-          <div 
-            key={idx} 
-            className="p-5 rounded-2xl border border-border-light dark:border-border-dark bg-white dark:bg-card-dark flex items-start gap-4 hover:border-brand-primary/30 transition-colors shadow-sm"
-          >
-            <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center flex-shrink-0">
-              <Zap className="w-5 h-5 text-brand-primary" />
-            </div>
-            <p className="text-sm font-medium text-text-primaryLight dark:text-text-primaryDark leading-relaxed">
-              {insight}
-            </p>
-          </div>
-        ))}
-        {insights.length === 0 && (
-          <div className="sm:col-span-2 p-5 rounded-2xl border border-border-light dark:border-border-dark bg-white dark:bg-card-dark flex items-center justify-center h-full">
-            <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark">Not enough data to generate insights yet.</p>
-          </div>
-        )}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-5">
+          {FACTORS.map((factor) => (
+            <span
+              key={factor}
+              className="text-[11px] text-text-secondaryLight dark:text-text-secondaryDark"
+            >
+              {factor}
+            </span>
+          ))}
       </div>
-    </div>
+    </Card>
   );
 };
 

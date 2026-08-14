@@ -1,4 +1,5 @@
 import goalRepository from '../repositories/GoalRepository';
+import userRepository from '../repositories/UserRepository';
 import { NotFoundError, BadRequestError } from '../errors/AppError';
 import { Goal, Prisma, Currency } from '@prisma/client';
 
@@ -113,11 +114,18 @@ export class GoalService {
       targetDate?: Date | null;
     }
   ): Promise<GoalWithStats> {
+    // Phase 1 multi-currency: goals are denominated in the account base
+    // currency. No FX model is applied to currentAmount — correct handling
+    // needs a per-contribution ledger, deferred to a future phase.
+    const user = await userRepository.findById(userId);
+    if (!user) throw new NotFoundError('User not found');
+    const baseCurrency = (user.baseCurrency ?? user.preferredCurrency) as Currency;
+
     const goal = await goalRepository.create({
       name: data.name,
       targetAmount: new Prisma.Decimal(data.targetAmount),
       currentAmount: new Prisma.Decimal(data.currentAmount || 0),
-      currency: data.currency,
+      currency: baseCurrency,
       targetDate: data.targetDate || null,
       userId,
     });
@@ -163,11 +171,12 @@ export class GoalService {
       throw new NotFoundError('Goal not found');
     }
 
+    const { currency: _ignoredCurrency, ...safeData } = data;
+
     const updatedGoal = await goalRepository.update(id, {
-      ...data,
+      ...safeData,
       targetAmount: data.targetAmount !== undefined ? new Prisma.Decimal(data.targetAmount) : undefined,
       currentAmount: data.currentAmount !== undefined ? new Prisma.Decimal(data.currentAmount) : undefined,
-      currency: data.currency,
     });
 
     return this.formatGoalStats(updatedGoal);

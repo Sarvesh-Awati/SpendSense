@@ -41,32 +41,32 @@ export interface GoalResponse {
 
 // REST Requests
 export const getGoals = async (): Promise<{ status: string; data: { goals: GoalResponse[] } }> => {
-  const response = await api.get('/api/goals');
+  const response = await api.get('/goals');
   return response.data;
 };
 
 export const getGoal = async (id: string): Promise<{ status: string; data: { goal: GoalResponse } }> => {
-  const response = await api.get(`/api/goals/${id}`);
+  const response = await api.get(`/goals/${id}`);
   return response.data;
 };
 
 export const createGoal = async (data: CreateGoalInput) => {
-  const response = await api.post('/api/goals', data);
+  const response = await api.post('/goals', data);
   return response.data;
 };
 
 export const updateGoal = async ({ id, data }: { id: string; data: UpdateGoalInput }) => {
-  const response = await api.put(`/api/goals/${id}`, data);
+  const response = await api.put(`/goals/${id}`, data);
   return response.data;
 };
 
 export const deleteGoal = async (id: string) => {
-  const response = await api.delete(`/api/goals/${id}`);
+  const response = await api.delete(`/goals/${id}`);
   return response.data;
 };
 
 export const contributeGoal = async ({ id, amount }: { id: string; amount: number }) => {
-  const response = await api.post(`/api/goals/${id}/contribute`, { amount });
+  const response = await api.post(`/goals/${id}/contribute`, { amount });
   return response.data;
 };
 

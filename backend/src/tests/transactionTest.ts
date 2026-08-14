@@ -1,9 +1,20 @@
 import transactionService from '../services/transactionService';
 import transactionRepository from '../repositories/TransactionRepository';
 import categoryRepository from '../repositories/CategoryRepository';
+import userRepository from '../repositories/UserRepository';
 import { NotFoundError } from '../errors/AppError';
 import { CategoryType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+
+/**
+ * Multi-currency: transactionService resolves the account base currency before
+ * deriving a conversion, so tests must stub the user lookup. Base = INR here,
+ * matching the transaction currency, so conversion is rate 1 with no provider.
+ */
+const stubBaseCurrencyUser = () => {
+  userRepository.findById = async () =>
+    ({ id: 'user-1', baseCurrency: 'INR', preferredCurrency: 'INR' } as any);
+};
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -57,6 +68,8 @@ async function runTests() {
       updatedAt: new Date(),
     };
 
+    stubBaseCurrencyUser();
+
     categoryRepository.findById = async (id: string) => {
       assert(id === 'category-uuid', 'Should check correct category ID');
       return mockCategory;
@@ -79,7 +92,9 @@ async function runTests() {
     });
 
     assert(result.id === 'tx-uuid', 'Should return created transaction ID');
-    assert(result.amount.toNumber() === 250.5, 'Transaction amount must match input');
+    // Contract change: transaction endpoints now return a number, not a Decimal.
+    assert(typeof result.amount === 'number', 'Amount must be serialized as a number');
+    assert(result.amount === 250.5, 'Transaction amount must match input');
   });
 
   // 2. Reject Creating Transaction with Other User's Category
@@ -133,6 +148,12 @@ async function runTests() {
     const ownTx = {
       id: 'tx-uuid',
       amount: new Decimal(100.0),
+      currency: 'INR',
+      // Already-converted record: an amount-only edit must REUSE this rate
+      // rather than fetching a new one.
+      baseCurrency: 'INR',
+      exchangeRate: new Decimal(1),
+      convertedAmount: new Decimal(100.0),
       userId: 'user-1', // owned by user-1
       categoryId: 'category-uuid',
     };
@@ -141,14 +162,22 @@ async function runTests() {
     transactionRepository.update = async (id: string, data: any) => {
       assert(id === 'tx-uuid', 'Should update correct ID');
       assert(data.amount === 120.0, 'Should update amount');
-      return { ...ownTx, amount: new Decimal(120.0) } as any;
+      // amount-only edit reuses the stored rate of 1
+      assert(
+        data.convertedAmount?.toString() === '120',
+        'convertedAmount must be recomputed with the STORED rate'
+      );
+      return { ...ownTx, amount: new Decimal(120.0), convertedAmount: new Decimal(120.0) } as any;
     };
+
+    stubBaseCurrencyUser();
 
     const result = await transactionService.update('user-1', 'tx-uuid', {
       amount: 120.0,
     });
 
-    assert(result.amount.toNumber() === 120.0, 'Amount must be updated');
+    assert(typeof result.amount === 'number', 'Amount must be serialized as a number');
+    assert(result.amount === 120.0, 'Amount must be updated');
   });
 
   // 5. Delete foreign transaction restriction

@@ -54,6 +54,12 @@ model User {
   lastName          String?
   profilePictureUrl String?
   preferredCurrency Currency       @default(INR)
+  // Canonical accounting/reporting currency for the account. Every
+  // Transaction.convertedAmount is denominated in this. Deliberately NOT an
+  // ordinary editable setting: changing it would invalidate historical
+  // conversions, so re-basing must be an explicit, audited operation.
+  // Nullable only so existing rows could be backfilled; treat as required.
+  baseCurrency      Currency?
   language          String         @default("en")
   dateFormat        String         @default("DD/MM/YYYY")
   timeFormat        String         @default("12h")
@@ -67,21 +73,25 @@ model User {
   updatedAt         DateTime       @updatedAt
   
   // Relations
-  refreshTokens RefreshToken[]
-  categories    Category[]
-  transactions  Transaction[]
-  budgets       Budget[]
-  goals         Goal[]
-  subscriptions Subscription[]
-  notifications Notification[]
-  receipts      Receipt[]
+  refreshTokens      RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  categories         Category[]
+  transactions       Transaction[]
+  budgets            Budget[]
+  goals              Goal[]
+  subscriptions      Subscription[]
+  notifications      Notification[]
+  receipts           Receipt[]
 
   @@map("users")
 }
 
 model RefreshToken {
   id        String   @id @default(uuid()) @db.Uuid
-  token     String   @unique
+  // Only the SHA-256 hash of the refresh token is stored. The raw token is
+  // returned to the client once, at issue time, and never persisted — so a
+  // database disclosure cannot be replayed as a valid session.
+  tokenHash String   @unique
   expiresAt DateTime
   userId    String   @db.Uuid
   createdAt DateTime @default(now())
@@ -90,7 +100,6 @@ model RefreshToken {
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([token])
   @@index([userId])
   @@map("refresh_tokens")
 }
@@ -251,4 +260,19 @@ model Receipt {
 
   @@index([userId])
   @@map("receipts")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  userId    String    @db.Uuid
+  createdAt DateTime  @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }

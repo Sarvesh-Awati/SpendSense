@@ -37,6 +37,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   isPending,
   onCancel,
 }) => {
+  // Edit mode is signalled by an existing record id. Prefilled create flows
+  // (Quick Add, Receipt Scanner) pass initialData without one.
+  const isEditMode = Boolean(initialData?.id);
+
   const { data: categoriesResponse, isLoading: categoriesLoading } = useCategories();
   const categories = categoriesResponse?.data?.categories || [];
   const { user } = useAuth();
@@ -325,7 +329,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           className="px-5 py-3 rounded-xl bg-brand-primary text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-emerald-600 transition-all disabled:opacity-50 disabled:pointer-events-none"
         >
           {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-          <span>{initialData ? 'Save Changes' : 'Add Transaction'}</span>
+          <span>{isEditMode ? 'Save Changes' : 'Add Transaction'}</span>
         </button>
       </div>
     </form>

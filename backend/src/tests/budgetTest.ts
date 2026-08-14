@@ -1,10 +1,23 @@
 import budgetService from '../services/budgetService';
+import userRepository from '../repositories/UserRepository';
 import budgetRepository from '../repositories/BudgetRepository';
 import categoryRepository from '../repositories/CategoryRepository';
 import prisma from '../database/prisma';
 import { NotFoundError } from '../errors/AppError';
 import { CategoryType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+
+
+/**
+ * Multi-currency: budget/goal services resolve the account base currency, and
+ * reporting is guarded against unconverted rows. Both must be stubbed so these
+ * unit tests exercise their own logic.
+ */
+const stubCurrencyDeps = () => {
+  userRepository.findById = async () =>
+    ({ id: 'user-1', baseCurrency: 'INR', preferredCurrency: 'INR' } as any);
+  (prisma.transaction as unknown as Record<string, Function>).count = async () => 0 as any;
+};
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -53,6 +66,7 @@ async function runTests() {
 
   // 1. Create Budget Success
   await runTest('Create Budget Success', async () => {
+    stubCurrencyDeps();
     categoryRepository.findById = async () => mockCategory;
     budgetRepository.create = async (data: any) => ({
       ...mockBudget,
@@ -60,7 +74,7 @@ async function runTests() {
     } as any);
 
     (prisma.transaction as unknown as Record<string, Function>).aggregate = async () => ({
-      _sum: { amount: new Decimal(250) }, // spent 250 of 1000
+      _sum: { convertedAmount: new Decimal(250) }, // spent 250 of 1000
     });
 
     const result = await budgetService.create('user-1', {
@@ -80,11 +94,12 @@ async function runTests() {
 
   // 2. Budget Warning State (80%)
   await runTest('Trigger Budget Warning State at 80% Spent', async () => {
+    stubCurrencyDeps();
     categoryRepository.findById = async () => mockCategory;
     budgetRepository.create = async () => mockBudget as any;
     
     (prisma.transaction as unknown as Record<string, Function>).aggregate = async () => ({
-      _sum: { amount: new Decimal(850) }, // spent 850 of 1000 = 85%
+      _sum: { convertedAmount: new Decimal(850) }, // spent 850 of 1000 = 85%
     });
 
     const result = await budgetService.create('user-1', {
@@ -102,11 +117,12 @@ async function runTests() {
 
   // 3. Budget Exceeded State (100%)
   await runTest('Trigger Budget Exceeded State at >100% Spent', async () => {
+    stubCurrencyDeps();
     categoryRepository.findById = async () => mockCategory;
     budgetRepository.create = async () => mockBudget as any;
     
     (prisma.transaction as unknown as Record<string, Function>).aggregate = async () => ({
-      _sum: { amount: new Decimal(1200) }, // spent 1200 of 1000 = 120%
+      _sum: { convertedAmount: new Decimal(1200) }, // spent 1200 of 1000 = 120%
     });
 
     const result = await budgetService.create('user-1', {
@@ -124,6 +140,7 @@ async function runTests() {
 
   // 4. Budget User Isolation Check
   await runTest('Prevent Fetching Foreign Budget Detail', async () => {
+    stubCurrencyDeps();
     const foreignBudget = {
       ...mockBudget,
       userId: 'user-2', // belongs to another user

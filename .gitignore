@@ -41,3 +41,4 @@ lerna-debug.log*
 .gemini/
 .agents/
 .next/
+backend/.env
