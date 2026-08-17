@@ -43,7 +43,15 @@ export interface SubscriptionRecord {
     color: string;
   } | null;
   daysUntilRenewal: number;
+  /** Monthly cost in the subscription's OWN currency. Never sum across rows. */
   monthlyEquivalentCost: number;
+  /**
+   * Monthly cost converted into the user's base/reporting currency at today's
+   * rate. Null when no rate was available — the API refuses to emit a raw
+   * foreign amount here, so a total built from these must treat null as
+   * "cannot report" rather than zero.
+   */
+  monthlyEquivalentInBase: number | null;
   annualCost: number;
 }
 

@@ -81,21 +81,21 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({
       <div className="flex justify-end gap-2 border-t border-border-light/40 dark:border-border-dark/40 pt-3">
         <button
           onClick={() => onViewDetails(tx)}
-          className="flex items-center justify-center p-2 rounded-xl border border-border-light dark:border-border-dark text-text-secondaryLight dark:text-text-secondaryDark hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors"
+          className="flex items-center justify-center p-2 rounded-xl border border-border-light dark:border-border-dark text-text-secondaryLight dark:text-text-secondaryDark hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors"
           title="Details"
         >
           <Eye className="w-4 h-4" />
         </button>
         <button
           onClick={() => onEdit(tx)}
-          className="flex items-center justify-center p-2 rounded-xl border border-border-light dark:border-border-dark text-brand-secondary hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors"
+          className="flex items-center justify-center p-2 rounded-xl border border-border-light dark:border-border-dark text-brand-secondary hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors"
           title="Edit"
         >
           <Edit2 className="w-4 h-4" />
         </button>
         <button
           onClick={() => onDelete(tx)}
-          className="flex items-center justify-center p-2 rounded-xl border border-border-light dark:border-border-dark text-finance-expense hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors"
+          className="flex items-center justify-center p-2 rounded-xl border border-border-light dark:border-border-dark text-finance-expense hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors"
           title="Delete"
         >
           <Trash2 className="w-4 h-4" />

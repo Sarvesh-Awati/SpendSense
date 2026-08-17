@@ -86,14 +86,14 @@ export const BudgetProgress: React.FC<BudgetProgressProps> = ({
         <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => onEdit(budget)}
-            className="p-1.5 rounded-lg border border-border-light dark:border-border-dark text-text-secondaryLight hover:text-brand-secondary hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg border border-border-light dark:border-border-dark text-text-secondaryLight hover:text-brand-secondary hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors cursor-pointer"
             title="Edit Budget"
           >
             <Edit2 className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => onDelete(budget)}
-            className="p-1.5 rounded-lg border border-border-light dark:border-border-dark text-text-secondaryLight hover:text-finance-expense hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg border border-border-light dark:border-border-dark text-text-secondaryLight hover:text-finance-expense hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors cursor-pointer"
             title="Delete Budget"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -113,7 +113,7 @@ export const BudgetProgress: React.FC<BudgetProgressProps> = ({
         </div>
 
         {/* Visual Progress Bar */}
-        <div className="h-2.5 w-full rounded-full bg-slate-100 dark:bg-[#111622] border border-border-light/40 dark:border-border-dark/40 overflow-hidden">
+        <div className="h-2.5 w-full rounded-full bg-slate-100 dark:bg-surface-sunk border border-border-light/40 dark:border-border-dark/40 overflow-hidden">
           <div
             className={`h-full rounded-full ${progressColor} transition-all duration-500`}
             style={{ width: `${visualPercentage}%` }}

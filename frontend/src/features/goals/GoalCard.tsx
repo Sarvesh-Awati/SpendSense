@@ -60,14 +60,14 @@ export const GoalCard: React.FC<GoalCardProps> = ({
         <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => onEdit(goal)}
-            className="p-1.5 rounded-lg border border-border-light dark:border-border-dark text-text-secondaryLight hover:text-brand-secondary hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg border border-border-light dark:border-border-dark text-text-secondaryLight hover:text-brand-secondary hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors cursor-pointer"
             title="Edit Goal"
           >
             <Edit2 className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => onDelete(goal)}
-            className="p-1.5 rounded-lg border border-border-light dark:border-border-dark text-text-secondaryLight hover:text-finance-expense hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg border border-border-light dark:border-border-dark text-text-secondaryLight hover:text-finance-expense hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors cursor-pointer"
             title="Delete Goal"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -108,7 +108,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({
 
       {/* Predictive Insights */}
       {goal.predictions && !isCompleted && (
-        <div className="bg-slate-50 dark:bg-[#111622] rounded-xl p-3 space-y-2 border border-slate-100 dark:border-[#1a2235]">
+        <div className="bg-slate-50 dark:bg-surface-sunk rounded-xl p-3 space-y-2 border border-slate-100 dark:border-[#1a2235]">
           {goal.predictions.requiredMonthlyContribution && (
             <div className="flex justify-between items-center text-xs">
               <span className="text-text-secondaryLight dark:text-text-secondaryDark">Required / mo</span>

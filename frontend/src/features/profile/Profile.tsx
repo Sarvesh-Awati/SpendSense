@@ -1,5 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { FALLBACK_CURRENCY, SUPPORTED_CURRENCIES } from '../../utils/formatCurrency';
+import PageHeader from '../../components/ui/PageHeader';
+import { Field, Input, Select } from '../../components/ui/Field';
+import Modal from '../../components/ui/Modal';
+import Button from '../../components/ui/Button';
 import { useToast } from '../../components/ui/Toast';
 import { updateProfile, changePassword, logoutAllDevices, deleteAccount, exportData } from '../../services/user';
 import Avatar from '../../components/common/Avatar';
@@ -23,7 +28,7 @@ export const Profile: React.FC = () => {
   });
 
   const [preferences, setPreferences] = useState({
-    preferredCurrency: user?.preferredCurrency || 'USD',
+    preferredCurrency: user?.preferredCurrency || FALLBACK_CURRENCY,
     language: user?.language || 'en',
     dateFormat: user?.dateFormat || 'DD/MM/YYYY',
     timeFormat: user?.timeFormat || '12h',
@@ -51,6 +56,7 @@ export const Profile: React.FC = () => {
   // password rather than relying on the confirmation dialog alone.
   const [deletePassword, setDeletePassword] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -151,21 +157,30 @@ export const Profile: React.FC = () => {
     }
   };
 
-  const handleDeleteAccount = async () => {
+  /**
+   * Opens the confirmation dialog. This used a native `window.confirm`, which
+   * could not be styled, trapped focus, or matched the app's other destructive
+   * flows. The password check still runs first, so the dialog is only reachable
+   * once a password has been entered.
+   */
+  const handleDeleteAccount = () => {
     if (!deletePassword) {
       toast('Enter your password to confirm deletion', 'error');
       return;
     }
-    if (!window.confirm('Are you sure you want to permanently delete your account? This action cannot be undone.')) {
-      return;
-    }
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteAccountConfirm = async () => {
     setIsDeleting(true);
     try {
       await deleteAccount(deletePassword);
       setDeletePassword('');
+      setIsDeleteConfirmOpen(false);
       logout();
     } catch (err: any) {
       toast(err.response?.data?.message || 'Failed to delete account', 'error');
+      setIsDeleteConfirmOpen(false);
     } finally {
       setIsDeleting(false);
     }
@@ -216,12 +231,11 @@ export const Profile: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 animate-fade-in text-left">
-      <div>
-        <h1 className="font-outfit text-3xl font-bold tracking-tight text-text-primaryLight dark:text-text-primaryDark">Settings</h1>
-        <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark mt-1">
-          Manage your account settings and preferences.
-        </p>
-      </div>
+      <PageHeader
+        title="Settings"
+        subtitle="Manage your account settings and preferences."
+        divider
+      />
 
       <div className="flex flex-col md:flex-row gap-8">
         {/* Sidebar */}
@@ -279,7 +293,7 @@ export const Profile: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2.5 rounded-xl border border-border-light dark:border-border-dark text-sm font-semibold hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors w-full sm:w-auto flex items-center justify-center gap-2"
+                      className="px-4 py-2.5 rounded-xl border border-border-light dark:border-border-dark text-sm font-semibold hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors w-full sm:w-auto flex items-center justify-center gap-2"
                     >
                       <Camera className="w-4 h-4" /> Change Picture
                     </button>
@@ -311,7 +325,7 @@ export const Profile: React.FC = () => {
                       name="firstName"
                       value={formData.firstName}
                       onChange={e => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
-                      className="w-full pl-11 pr-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:border-brand-primary transition-all"
+                      className="w-full pl-11 pr-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-surface-sunk text-sm focus:outline-none focus:border-brand-primary transition-all"
                     />
                   </div>
                 </div>
@@ -326,7 +340,7 @@ export const Profile: React.FC = () => {
                       name="lastName"
                       value={formData.lastName}
                       onChange={e => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
-                      className="w-full pl-11 pr-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:border-brand-primary transition-all"
+                      className="w-full pl-11 pr-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-surface-sunk text-sm focus:outline-none focus:border-brand-primary transition-all"
                     />
                   </div>
                 </div>
@@ -365,58 +379,68 @@ export const Profile: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Preferred Currency</label>
-                  <select
-                    value={preferences.preferredCurrency}
-                    onChange={e => setPreferences(prev => ({ ...prev, preferredCurrency: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:border-brand-primary transition-all appearance-none"
-                  >
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="GBP">GBP (£)</option>
-                    <option value="INR">INR (₹)</option>
-                    <option value="CAD">CAD (C$)</option>
-                    <option value="AUD">AUD (A$)</option>
-                    <option value="JPY">JPY (¥)</option>
-                    <option value="CNY">CNY (¥)</option>
-                    <option value="SGD">SGD (S$)</option>
-                    <option value="AED">AED (د.إ)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Language</label>
-                  <select
-                    value={preferences.language}
-                    onChange={e => setPreferences(prev => ({ ...prev, language: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:border-brand-primary transition-all appearance-none"
-                  >
-                    <option value="en">English</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Date Format</label>
-                  <select
-                    value={preferences.dateFormat}
-                    onChange={e => setPreferences(prev => ({ ...prev, dateFormat: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:border-brand-primary transition-all appearance-none"
-                  >
-                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                    <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Time Format</label>
-                  <select
-                    value={preferences.timeFormat}
-                    onChange={e => setPreferences(prev => ({ ...prev, timeFormat: e.target.value }))}
-                    className="w-full px-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:border-brand-primary transition-all appearance-none"
-                  >
-                    <option value="12h">12 Hour</option>
-                    <option value="24h">24 Hour</option>
-                  </select>
-                </div>
+                <Field label="Preferred Currency">
+                  {(ids) => (
+                    <Select
+                      {...ids}
+                      value={preferences.preferredCurrency}
+                      onChange={(e) =>
+                        setPreferences((prev) => ({ ...prev, preferredCurrency: e.target.value }))
+                      }
+                    >
+                      {SUPPORTED_CURRENCIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                </Field>
+
+                <Field label="Language">
+                  {(ids) => (
+                    <Select
+                      {...ids}
+                      value={preferences.language}
+                      onChange={(e) =>
+                        setPreferences((prev) => ({ ...prev, language: e.target.value }))
+                      }
+                    >
+                      <option value="en">English</option>
+                    </Select>
+                  )}
+                </Field>
+
+                <Field label="Date Format">
+                  {(ids) => (
+                    <Select
+                      {...ids}
+                      value={preferences.dateFormat}
+                      onChange={(e) =>
+                        setPreferences((prev) => ({ ...prev, dateFormat: e.target.value }))
+                      }
+                    >
+                      <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    </Select>
+                  )}
+                </Field>
+
+                <Field label="Time Format">
+                  {(ids) => (
+                    <Select
+                      {...ids}
+                      value={preferences.timeFormat}
+                      onChange={(e) =>
+                        setPreferences((prev) => ({ ...prev, timeFormat: e.target.value }))
+                      }
+                    >
+                      <option value="12h">12 Hour</option>
+                      <option value="24h">24 Hour</option>
+                    </Select>
+                  )}
+                </Field>
               </div>
 
               <div className="flex justify-end pt-4">
@@ -522,53 +546,56 @@ export const Profile: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Current Password</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/50 dark:text-text-secondaryDark/40">
-                        <Lock className="w-4 h-4" />
-                      </div>
-                      <input
+                  <Field label="Current Password" required>
+                    {(ids) => (
+                      <Input
+                        {...ids}
                         type="password"
                         required
+                        icon={Lock}
                         value={securityData.currentPassword}
-                        onChange={e => setSecurityData(prev => ({ ...prev, currentPassword: e.target.value }))}
-                        className="w-full pl-11 pr-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:border-brand-primary transition-all"
+                        onChange={(e) =>
+                          setSecurityData((prev) => ({ ...prev, currentPassword: e.target.value }))
+                        }
                       />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">New Password</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/50 dark:text-text-secondaryDark/40">
-                        <Lock className="w-4 h-4" />
-                      </div>
-                      <input
+                    )}
+                  </Field>
+
+                  <Field
+                    label="New Password"
+                    description="At least 8 characters."
+                    required
+                  >
+                    {(ids) => (
+                      <Input
+                        {...ids}
                         type="password"
                         required
                         minLength={8}
+                        icon={Lock}
                         value={securityData.newPassword}
-                        onChange={e => setSecurityData(prev => ({ ...prev, newPassword: e.target.value }))}
-                        className="w-full pl-11 pr-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:border-brand-primary transition-all"
+                        onChange={(e) =>
+                          setSecurityData((prev) => ({ ...prev, newPassword: e.target.value }))
+                        }
                       />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Confirm New Password</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/50 dark:text-text-secondaryDark/40">
-                        <Lock className="w-4 h-4" />
-                      </div>
-                      <input
+                    )}
+                  </Field>
+
+                  <Field label="Confirm New Password" required>
+                    {(ids) => (
+                      <Input
+                        {...ids}
                         type="password"
                         required
                         minLength={8}
+                        icon={Lock}
                         value={securityData.confirmPassword}
-                        onChange={e => setSecurityData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                        className="w-full pl-11 pr-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:border-brand-primary transition-all"
+                        onChange={(e) =>
+                          setSecurityData((prev) => ({ ...prev, confirmPassword: e.target.value }))
+                        }
                       />
-                    </div>
-                  </div>
+                    )}
+                  </Field>
                 </div>
 
                 <div className="flex justify-end pt-2">
@@ -582,7 +609,7 @@ export const Profile: React.FC = () => {
 
               <div>
                 <h3 className="text-sm font-bold text-text-primaryLight dark:text-text-primaryDark mb-4">Device Management</h3>
-                <div className="flex items-center justify-between p-4 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622]">
+                <div className="flex items-center justify-between p-4 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-surface-sunk">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
                       <Smartphone className="w-5 h-5" />
@@ -609,7 +636,7 @@ export const Profile: React.FC = () => {
               </div>
 
               <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row items-center justify-between p-5 rounded-2xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] gap-4">
+                <div className="flex flex-col sm:flex-row items-center justify-between p-5 rounded-2xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-surface-sunk gap-4">
                   <div>
                     <h4 className="text-sm font-bold">Export My Data</h4>
                     <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-1">Download a copy of your transactions, budgets, goals, and profile data in JSON format.</p>
@@ -640,7 +667,7 @@ export const Profile: React.FC = () => {
                           value={deletePassword}
                           onChange={e => setDeletePassword(e.target.value)}
                           placeholder="Current password"
-                          className="w-full pl-11 pr-4 py-3 rounded-xl border border-finance-expense/30 bg-white dark:bg-[#111622] text-sm focus:outline-none focus:border-finance-expense transition-all"
+                          className="w-full pl-11 pr-4 py-3 rounded-xl border border-finance-expense/30 bg-white dark:bg-surface-sunk text-sm focus:outline-none focus:border-finance-expense transition-all"
                         />
                       </div>
                     </div>
@@ -659,6 +686,39 @@ export const Profile: React.FC = () => {
 
         </div>
       </div>
+
+      {/* Destructive and irreversible: no backdrop dismissal. */}
+      <Modal
+        open={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        title="Delete your account?"
+        size="sm"
+        closeOnBackdrop={false}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setIsDeleteConfirmOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleDeleteAccountConfirm} loading={isDeleting}>
+              Delete Account
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3 text-left">
+          <span className="w-10 h-10 shrink-0 rounded-control bg-finance-expense/10 text-finance-expense flex items-center justify-center">
+            <Trash2 className="w-5 h-5" aria-hidden="true" />
+          </span>
+          <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark leading-relaxed">
+            This permanently deletes your account and every transaction, budget, goal and
+            subscription in it. This cannot be undone.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 };

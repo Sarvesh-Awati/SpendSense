@@ -2,7 +2,7 @@ import React from 'react';
 import { ShieldAlert, Repeat } from 'lucide-react';
 import { useDashboardMetrics } from '../../services/dashboard';
 import { useAuth } from '../../context/AuthContext';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { formatCurrency, FALLBACK_CURRENCY } from '../../utils/formatCurrency';
 import Card, { PanelHead } from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
 
@@ -10,7 +10,7 @@ export const SubscriptionsSummaryWidget: React.FC = () => {
   const { data: response } = useDashboardMetrics();
   const subsData = response?.data?.subscriptions;
   const { user } = useAuth();
-  const preferredCurrency = user?.preferredCurrency || 'USD';
+  const preferredCurrency = user?.preferredCurrency || FALLBACK_CURRENCY;
 
   // The secondary row reserves four slots, so this module always renders — an
   // absent fourth column left the row visibly unbalanced. Empty state is quiet

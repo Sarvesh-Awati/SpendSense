@@ -83,7 +83,7 @@ export const Register: React.FC = () => {
               type="text"
               placeholder="Jane"
               disabled={registerMutation.isPending}
-              className={`w-full pl-9 pr-3 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all ${
+              className={`w-full pl-9 pr-3 py-3 rounded-xl border bg-slate-50 dark:bg-surface-sunk text-sm focus:outline-none focus:ring-1 transition-all ${
                 errors.firstName
                   ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                   : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
@@ -109,7 +109,7 @@ export const Register: React.FC = () => {
               type="text"
               placeholder="Doe"
               disabled={registerMutation.isPending}
-              className={`w-full pl-9 pr-3 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all ${
+              className={`w-full pl-9 pr-3 py-3 rounded-xl border bg-slate-50 dark:bg-surface-sunk text-sm focus:outline-none focus:ring-1 transition-all ${
                 errors.lastName
                   ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                   : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
@@ -137,7 +137,7 @@ export const Register: React.FC = () => {
             type="email"
             placeholder="jane.doe@example.com"
             disabled={registerMutation.isPending}
-            className={`w-full pl-10 pr-4 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all ${
+            className={`w-full pl-10 pr-4 py-3 rounded-xl border bg-slate-50 dark:bg-surface-sunk text-sm focus:outline-none focus:ring-1 transition-all ${
               errors.email
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
@@ -164,7 +164,7 @@ export const Register: React.FC = () => {
             type="password"
             placeholder="••••••••"
             disabled={registerMutation.isPending}
-            className={`w-full pl-10 pr-4 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all ${
+            className={`w-full pl-10 pr-4 py-3 rounded-xl border bg-slate-50 dark:bg-surface-sunk text-sm focus:outline-none focus:ring-1 transition-all ${
               errors.password
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'

@@ -3,6 +3,9 @@ import { useUploadReceipt, ReceiptExtractionResult } from '../../services/receip
 import { useCreateTransaction, useCategories } from '../../services/transactions';
 import { useToast } from '../../components/ui/Toast';
 import TransactionForm from '../transactions/TransactionForm';
+import PageHeader from '../../components/ui/PageHeader';
+import Button from '../../components/ui/Button';
+import { Field, Input } from '../../components/ui/Field';
 import {
   Upload,
   Camera,
@@ -12,10 +15,44 @@ import {
   Sparkles,
   FileImage,
   CheckCircle,
+  Check,
   Zap,
 } from 'lucide-react';
 
-type ScannerStep = 'upload' | 'scanning' | 'review' | 'error';
+/**
+ * `confirm` sits between scanning and review: a compact row to accept or
+ * reject the scan, and to correct the extracted date, before the full
+ * transaction form is opened.
+ */
+type ScannerStep = 'upload' | 'scanning' | 'confirm' | 'review' | 'error';
+
+const today = () => new Date().toISOString().split('T')[0];
+
+/**
+ * `<input type="date">` only accepts yyyy-MM-dd. The extractor returns that
+ * shape for most receipts; anything else is parsed, and an unusable value
+ * falls back to today — the same fallback the form already applied.
+ */
+const toDateInputValue = (raw: string | null | undefined): string => {
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const trimmed = raw.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+  }
+  return today();
+};
+
+/** Human-readable form of a yyyy-MM-dd value, without shifting the day. */
+const displayDate = (value: string): string => {
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
 
 export const ReceiptScanner: React.FC = () => {
   const { toast } = useToast();
@@ -30,6 +67,11 @@ export const ReceiptScanner: React.FC = () => {
   const [extraction, setExtraction] = useState<ReceiptExtractionResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
+  /**
+   * The date carried from the confirm row into the transaction form. Seeded
+   * from the extraction and editable before accepting.
+   */
+  const [receiptDate, setReceiptDate] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -95,8 +137,11 @@ export const ReceiptScanner: React.FC = () => {
 
     try {
       const result = await uploadMutation.mutateAsync(selectedFile);
-      setExtraction(result.data.extraction);
-      setStep('review');
+      const extracted = result.data.extraction;
+      setExtraction(extracted);
+      // Default to the OCR date; the confirm row lets it be corrected.
+      setReceiptDate(toDateInputValue(extracted.date));
+      setStep('confirm');
       toast('Receipt scanned successfully!', 'success');
     } catch (error: any) {
       const msg =
@@ -122,24 +167,30 @@ export const ReceiptScanner: React.FC = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
     setExtraction(null);
+    setReceiptDate('');
     setErrorMessage('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  /** Accept: carry the chosen date into the existing transaction form. */
+  const handleAcceptReceipt = () => {
+    if (!receiptDate) return;
+    setStep('review');
+  };
+
+  /** Decline: discard the scan and return to the empty upload state. */
+  const handleDeclineReceipt = () => {
+    handleReset();
+    toast('Receipt discarded', 'info');
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto text-left">
-      {/* Page Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="font-outfit text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Zap className="w-6 h-6 text-brand-secondary" />
-            AI Receipt Scanner
-          </h1>
-          <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark mt-1">
-            Upload a receipt image and let AI extract transaction details automatically
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="AI Receipt Scanner"
+        subtitle="Upload a receipt image and let AI extract transaction details automatically"
+        divider
+      />
 
       {/* Step: Upload */}
       {(step === 'upload' || step === 'error') && (
@@ -151,7 +202,7 @@ export const ReceiptScanner: React.FC = () => {
                 ? 'border-brand-primary bg-brand-primary/5 scale-[1.01]'
                 : selectedFile
                 ? 'border-brand-primary/30 bg-emerald-50/5 dark:bg-emerald-950/5'
-                : 'border-border-light dark:border-border-dark hover:border-brand-secondary/50 hover:bg-slate-50/50 dark:hover:bg-[#111622]/50'
+                : 'border-border-light dark:border-border-dark hover:border-brand-secondary/50 hover:bg-slate-50/50 dark:hover:bg-surface-sunk/50'
             }`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -256,6 +307,73 @@ export const ReceiptScanner: React.FC = () => {
         </div>
       )}
 
+      {/*
+        Step: Confirm — one compact row, not a second full-height card.
+        Thumbnail, what was extracted, an editable date, accept/decline.
+
+        No "apply date to all" control here: the scanner handles exactly one
+        receipt per run (single file input, single upload request), so there is
+        nothing to apply a date across.
+      */}
+      {step === 'confirm' && extraction && (
+        <div className="rounded-panel border border-border-light dark:border-border-dark p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-5">
+            {/* Thumbnail + what was read */}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              {previewUrl && (
+                <img
+                  src={previewUrl}
+                  alt="Scanned receipt"
+                  className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-control object-cover border border-border-light dark:border-border-dark"
+                />
+              )}
+
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate">
+                  {extraction.merchant || 'Receipt scanned'}
+                </p>
+                <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-0.5 truncate">
+                  Extracted date: {extraction.date ? displayDate(toDateInputValue(extraction.date)) : 'not found'}
+                  {extraction.confidence !== null && (
+                    <span> · {(extraction.confidence * 100).toFixed(0)}% confidence</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Editable date, defaulted to the extraction */}
+            <div className="w-full sm:w-44 shrink-0">
+              <Field label="Date">
+                {(ids) => (
+                  <Input
+                    {...ids}
+                    type="date"
+                    value={receiptDate}
+                    onChange={(e) => setReceiptDate(e.target.value)}
+                  />
+                )}
+              </Field>
+            </div>
+
+            {/* Accept is primary; decline stays quiet until hovered */}
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" icon={Check} onClick={handleAcceptReceipt} disabled={!receiptDate}>
+                Accept
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={X}
+                onClick={handleDeclineReceipt}
+                className="hover:text-finance-expense hover:border-finance-expense/40"
+              >
+                Decline
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Step: Review — show the TransactionForm prefilled with extraction data */}
       {step === 'review' && extraction && (
         <div className="space-y-5">
@@ -309,7 +427,8 @@ export const ReceiptScanner: React.FC = () => {
                 amount: extraction.amount || undefined,
                 merchant: extraction.merchant || '',
                 description: extraction.description || '',
-                date: extraction.date || new Date().toISOString().split('T')[0],
+                // Confirmed on the row above; falls back exactly as before.
+                date: receiptDate || extraction.date || today(),
                 type: 'EXPENSE',
                 categoryId: findCategoryId(extraction.suggestedCategory),
                 paymentMethod: 'Card',

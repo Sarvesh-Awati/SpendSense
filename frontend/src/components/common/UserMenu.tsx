@@ -39,7 +39,7 @@ export const UserMenu: React.FC = () => {
     <div className="relative" ref={menuRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 p-1 rounded-full hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors outline-none focus:ring-2 focus:ring-brand-primary/20"
+        className="flex items-center gap-3 p-1 rounded-full hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors outline-none focus:ring-2 focus:ring-brand-primary/20"
         aria-label="User menu"
         aria-expanded={isOpen}
       >
@@ -88,7 +88,7 @@ export const UserMenu: React.FC = () => {
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                   item.disabled 
                     ? 'opacity-50 cursor-not-allowed' 
-                    : 'hover:bg-slate-50 dark:hover:bg-[#111622] text-text-primaryLight dark:text-text-primaryDark'
+                    : 'hover:bg-slate-50 dark:hover:bg-surface-sunk text-text-primaryLight dark:text-text-primaryDark'
                 }`}
               >
                 <item.icon className="w-4 h-4 text-text-secondaryLight dark:text-text-secondaryDark" />

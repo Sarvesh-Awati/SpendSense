@@ -2,10 +2,17 @@ import React, { useEffect } from 'react';
 import { useForm as useRHForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { X, Loader2, Calendar, DollarSign, Tag, RefreshCw } from 'lucide-react';
 import { SubscriptionRecord, SubscriptionFrequency } from '../../services/subscriptions';
 import { useCategories } from '../../services/transactions';
 import { useAuth } from '../../context/AuthContext';
+import {
+  FALLBACK_CURRENCY,
+  SUPPORTED_CURRENCIES,
+  currencySymbol,
+} from '../../utils/formatCurrency';
+import { Field, Input, Select, controlClasses } from '../../components/ui/Field';
+import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -25,6 +32,8 @@ interface SubscriptionFormModalProps {
   onSubmit: (data: any) => Promise<void>;
   initialData?: SubscriptionRecord | null;
   isPending: boolean;
+  /** Focus target when the dialog closes; forwarded straight to Modal. */
+  returnFocusRef?: React.RefObject<HTMLElement>;
 }
 
 export const SubscriptionFormModal: React.FC<SubscriptionFormModalProps> = ({
@@ -33,15 +42,16 @@ export const SubscriptionFormModal: React.FC<SubscriptionFormModalProps> = ({
   onSubmit,
   initialData,
   isPending,
+  returnFocusRef,
 }) => {
   const { data: categoriesResponse } = useCategories();
   const categories = categoriesResponse?.data?.categories || [];
   const expenseCategories = categories.filter((c: any) => c.type === 'EXPENSE');
 
   const { user } = useAuth();
-  const preferredCurrency = user?.preferredCurrency || 'USD';
+  const preferredCurrency = user?.preferredCurrency || FALLBACK_CURRENCY;
 
-  const { register, handleSubmit, reset, formState: { errors } } = useRHForm<FormData>({
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useRHForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
@@ -80,211 +90,141 @@ export const SubscriptionFormModal: React.FC<SubscriptionFormModalProps> = ({
     }
   }, [isOpen, initialData, reset]);
 
-  if (!isOpen) return null;
+  /**
+   * "Uncategorized" is an empty <option>, which submitted `categoryId: ""`.
+   * The API accepts a UUID or null (the column is nullable) and rejected the
+   * empty string with a 400, so creating an uncategorised subscription always
+   * failed. Normalise to null here; every other field is passed through
+   * untouched.
+   */
+  const submitNormalized = (data: FormData) =>
+    onSubmit({ ...data, categoryId: data.categoryId ? data.categoryId : null });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="relative w-full max-w-md bg-white dark:bg-card-dark rounded-2xl shadow-premium dark:shadow-premium-dark border border-border-light dark:border-border-dark overflow-hidden animate-fade-in-up">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border-light dark:border-border-dark">
-          <div>
-            <h2 className="font-outfit text-xl font-bold">
-              {initialData ? 'Edit Subscription' : 'New Subscription'}
-            </h2>
-            <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-1">
-              {initialData ? 'Update recurring payment details' : 'Track a new recurring payment'}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors"
-          >
-            <X className="w-5 h-5 text-text-secondaryLight" />
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 text-left">
-          
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Name</label>
-            <input
+    // The shared Modal owns the overlay, header, close button, focus trap,
+    // Escape, focus restoration and scroll lock. The form below is unchanged.
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      returnFocusRef={returnFocusRef}
+      title={initialData ? 'Edit Subscription' : 'New Subscription'}
+      description={
+        initialData ? 'Update recurring payment details' : 'Track a new recurring payment'
+      }
+      size="md"
+    >
+      {/* Footer actions stay inside the form so submit still works. */}
+      <form onSubmit={handleSubmit(submitNormalized)} className="space-y-4 text-left">
+        <Field label="Name" error={errors.name?.message} disabled={isPending}>
+          {(ids) => (
+            <Input
+              {...ids}
               type="text"
-              {...register('name')}
               placeholder="e.g., Netflix, Gym, Spotify"
-              className={`w-full px-4 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all ${
-                errors.name
-                  ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
-                  : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
-              }`}
+              hasError={!!errors.name}
+              {...register('name')}
             />
-            {errors.name && <p className="text-finance-expense text-xs mt-1.5 font-medium">{errors.name.message}</p>}
-          </div>
+          )}
+        </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Amount</label>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Amount" error={errors.amount?.message} disabled={isPending}>
+            {(ids) => (
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/50 dark:text-text-secondaryDark/40">
-                  <DollarSign className="h-4 w-4" />
-                </div>
+                {/* Reflects the selected currency, not a fixed dollar glyph. */}
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/60 dark:text-text-secondaryDark/50 ${
+                    currencySymbol(watch('currency')).length > 1 ? 'text-[11px]' : 'text-sm'
+                  }`}
+                >
+                  {currencySymbol(watch('currency'))}
+                </span>
                 <input
+                  {...ids}
                   type="number"
                   step="0.01"
-                  {...register('amount', { valueAsNumber: true })}
                   placeholder="0.00"
-                  className={`w-full pl-11 pr-4 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all ${
-                    errors.amount
-                      ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
-                      : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
-                  }`}
+                  className={controlClasses(!!errors.amount, true)}
+                  {...register('amount', { valueAsNumber: true })}
                 />
               </div>
-              {errors.amount && <p className="text-finance-expense text-xs mt-1.5 font-medium">{errors.amount.message}</p>}
-            </div>
+            )}
+          </Field>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Currency</label>
-              <div className="relative">
-                <select
-                  {...register('currency')}
-                  className={`w-full pl-4 pr-10 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all appearance-none ${
-                    errors.currency
-                      ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
-                      : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
-                  }`}
-                >
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                  <option value="GBP">GBP (£)</option>
-                  <option value="INR">INR (₹)</option>
-                  <option value="CAD">CAD (C$)</option>
-                  <option value="AUD">AUD (A$)</option>
-                  <option value="JPY">JPY (¥)</option>
-                  <option value="CNY">CNY (¥)</option>
-                  <option value="SGD">SGD (S$)</option>
-                  <option value="AED">AED (د.إ)</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-text-secondaryLight dark:text-text-secondaryDark">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                </div>
-              </div>
-              {errors.currency && <p className="text-finance-expense text-xs mt-1.5 font-medium">{errors.currency.message}</p>}
-            </div>
+          <Field label="Currency" error={errors.currency?.message} disabled={isPending}>
+            {(ids) => (
+              <Select {...ids} hasError={!!errors.currency} {...register('currency')}>
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Frequency</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/50 dark:text-text-secondaryDark/40">
-                  <RefreshCw className="h-4 w-4" />
-                </div>
-                <select
-                  {...register('frequency')}
-                  className={`w-full pl-11 pr-4 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all appearance-none ${
-                    errors.frequency
-                      ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
-                      : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
-                  }`}
-                >
-                  <option value={SubscriptionFrequency.WEEKLY}>Weekly</option>
-                  <option value={SubscriptionFrequency.MONTHLY}>Monthly</option>
-                  <option value={SubscriptionFrequency.YEARLY}>Yearly</option>
-                </select>
-              </div>
-              {errors.frequency && <p className="text-finance-expense text-xs mt-1.5 font-medium">{errors.frequency.message}</p>}
-            </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Frequency" error={errors.frequency?.message} disabled={isPending}>
+            {(ids) => (
+              <Select {...ids} hasError={!!errors.frequency} {...register('frequency')}>
+                <option value={SubscriptionFrequency.WEEKLY}>Weekly</option>
+                <option value={SubscriptionFrequency.MONTHLY}>Monthly</option>
+                <option value={SubscriptionFrequency.YEARLY}>Yearly</option>
+              </Select>
+            )}
+          </Field>
+
+          <Field label="Start Date" error={errors.startDate?.message} disabled={isPending}>
+            {(ids) => (
+              <Input {...ids} type="date" hasError={!!errors.startDate} {...register('startDate')} />
+            )}
+          </Field>
+        </div>
+
+        <Field label="Category" error={errors.categoryId?.message} disabled={isPending}>
+          {(ids) => (
+            <Select {...ids} hasError={!!errors.categoryId} {...register('categoryId')}>
+              <option value="">Uncategorized</option>
+              {expenseCategories.map((cat: any) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+
+        <div className="flex items-center justify-between p-3 rounded-control border border-border-light dark:border-border-dark bg-slate-50/50 dark:bg-surface-sunk/40 mt-2">
+          <div className="text-left">
+            <p className="text-xs font-bold">Subscription is Active</p>
+            <p className="text-[10px] text-text-secondaryLight dark:text-text-secondaryDark">
+              Uncheck to pause tracking this subscription
+            </p>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Start Date</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/50 dark:text-text-secondaryDark/40">
-                  <Calendar className="h-4 w-4" />
-                </div>
-                <input
-                  type="date"
-                  {...register('startDate')}
-                  className={`w-full pl-11 pr-4 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all ${
-                    errors.startDate
-                      ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
-                      : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
-                  }`}
-                />
-              </div>
-              {errors.startDate && <p className="text-finance-expense text-xs mt-1.5 font-medium">{errors.startDate.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">Category</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/50 dark:text-text-secondaryDark/40">
-                  <Tag className="h-4 w-4" />
-                </div>
-                <select
-                  {...register('categoryId')}
-                  className={`w-full pl-11 pr-4 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all appearance-none ${
-                    errors.categoryId
-                      ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
-                      : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
-                  }`}
-                >
-                  <option value="">Uncategorized</option>
-                  {expenseCategories.map((cat: any) => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
-              </div>
-              {errors.categoryId && <p className="text-finance-expense text-xs mt-1.5 font-medium">{errors.categoryId.message}</p>}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50/50 dark:bg-[#111622]/40 mt-2">
-            <div className="text-left">
-              <p className="text-xs font-bold">Subscription is Active</p>
-              <p className="text-[10px] text-text-secondaryLight dark:text-text-secondaryDark">Uncheck to pause tracking this subscription</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                className="sr-only peer"
-                disabled={isPending}
-                {...register('isActive')}
-              />
-              <div className="w-9 h-5 bg-slate-200 dark:bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-primary"></div>
-            </label>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-3 border-t border-border-light dark:border-border-dark mt-6">
-            <button
-              type="button"
-              onClick={onClose}
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              className="sr-only peer"
               disabled={isPending}
-              className="px-4 py-3 rounded-xl border border-border-light dark:border-border-dark text-xs font-semibold hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              className="px-5 py-3 rounded-xl bg-brand-primary text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-emerald-600 transition-all disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <span>{initialData ? 'Save Changes' : 'Add Subscription'}</span>
-            </button>
-          </div>
+              {...register('isActive')}
+            />
+            <span className="sr-only">Subscription is active</span>
+            <div className="w-9 h-5 bg-slate-200 dark:bg-slate-800 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-primary/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-primary"></div>
+          </label>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-3 border-t border-border-light dark:border-border-dark mt-6">
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={isPending}>
+            {initialData ? 'Save Changes' : 'Add Subscription'}
+          </Button>
+        </div>
         </form>
-
-      </div>
-    </div>
+    </Modal>
   );
 };
 

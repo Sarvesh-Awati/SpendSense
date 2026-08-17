@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   useGoals,
   useCreateGoal,
@@ -11,17 +11,24 @@ import GoalCard from './GoalCard';
 import GoalForm from './GoalForm';
 import GoalContributionModal from './GoalContributionModal';
 import { useToast } from '../../components/ui/Toast';
-import {
-  Plus,
-  AlertTriangle,
-  Loader2,
-  X,
-  Target,
-  Coins,
-} from 'lucide-react';
+import PageHeader from '../../components/ui/PageHeader';
+import EmptyState from '../../components/ui/EmptyState';
+import ErrorState from '../../components/ui/ErrorState';
+import { SkeletonCardGrid } from '../../components/ui/Skeleton';
+import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
+import { Plus, AlertTriangle } from 'lucide-react';
 
 export const GoalList: React.FC = () => {
   const { toast } = useToast();
+
+  /**
+   * The page action, used as the focus target when a dialog closes.
+   * When the trigger was the empty-state CTA, that CTA has since unmounted
+   * (the list is no longer empty) and focus would otherwise drop to <body>.
+   * Modal falls back to the original trigger when this one is not mounted.
+   */
+  const headerActionRef = useRef<HTMLButtonElement>(null);
 
   // Modals status overrides
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -30,7 +37,7 @@ export const GoalList: React.FC = () => {
   const [selectedContribute, setSelectedContribute] = useState<GoalResponse | null>(null);
 
   // API Queries
-  const { data: response, isLoading, isError, refetch } = useGoals();
+  const { data: response, isLoading, isError, isFetching, refetch } = useGoals();
   const goals = response?.data?.goals || [];
 
   // Mutations
@@ -96,59 +103,46 @@ export const GoalList: React.FC = () => {
     );
   };
 
+  // With nothing to show, the empty state owns the single call to action —
+  // the header button beside it was a second, competing CTA for the same task.
+  const isEmpty = !isLoading && !isError && goals.length === 0;
+
   return (
     <div className="space-y-6">
-      {/* Action Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border-light dark:border-border-dark pb-6">
-        <div>
-          <h1 className="font-outfit text-3xl font-bold tracking-tight">Savings Goals</h1>
-          <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark mt-1">
-            Build financial security milestones and track projected completion velocity.
-          </p>
-        </div>
-        <button
-          onClick={() => setIsCreateOpen(true)}
-          className="flex items-center gap-1.5 px-4 py-3 rounded-xl bg-brand-primary text-white text-xs font-semibold hover:bg-emerald-600 transition-all cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Setup Goal
-        </button>
-      </div>
+      <PageHeader
+        title="Savings Goals"
+        subtitle="Build financial security milestones and track projected completion velocity."
+        divider
+        action={
+          isEmpty ? undefined : (
+            <Button ref={headerActionRef} icon={Plus} onClick={() => setIsCreateOpen(true)}>
+              Setup Goal
+            </Button>
+          )
+        }
+      />
 
       {/* Grid Dashboard list */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="p-6 rounded-3xl border border-border-light dark:border-border-dark bg-white dark:bg-card-dark h-56" />
-          ))}
-        </div>
+        <SkeletonCardGrid count={3} height="h-56" />
       ) : isError ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <AlertTriangle className="w-12 h-12 text-finance-expense mb-3" />
-          <h3 className="font-outfit font-bold text-lg mb-1">Failed to fetch goals</h3>
-          <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark max-w-sm mb-4">
-            An error occurred while connecting to our goals database server.
-          </p>
-          <button onClick={() => refetch()} className="px-4 py-2 bg-brand-primary text-white text-xs font-semibold rounded-xl">
-            Retry
-          </button>
-        </div>
+        <ErrorState
+          title="Couldn’t load your savings goals"
+          description="We couldn’t reach the goals service. Check your connection and try again."
+          onRetry={() => refetch()}
+          retrying={isFetching}
+        />
       ) : goals.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in border border-dashed border-border-light dark:border-border-dark rounded-3xl bg-white dark:bg-card-dark">
-          <div className="w-16 h-16 rounded-full bg-slate-50 dark:bg-[#111622] flex items-center justify-center text-text-secondaryLight dark:text-text-secondaryDark mb-4 border border-dashed border-border-light dark:border-border-dark">
-            <Target className="w-6 h-6" />
-          </div>
-          <h3 className="font-outfit font-bold text-lg mb-1">No savings goals created</h3>
-          <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark max-w-sm">
-            Configure savings goals to stay motivated and track your milestones.
-          </p>
-          <button
-            onClick={() => setIsCreateOpen(true)}
-            className="mt-6 flex items-center gap-1 px-4 py-3 rounded-xl border border-brand-primary/20 bg-brand-primary/5 text-brand-primary text-xs font-semibold hover:bg-brand-primary/10 transition-colors"
-          >
-            Configure savings target
-          </button>
-        </div>
+        // Compact band rather than a 20rem dashed card: an empty page should
+        // not reserve the vertical space a populated one needs.
+        <EmptyState
+          size="inline"
+          title="No savings goals created"
+          description="Configure savings goals to stay motivated and track your milestones."
+          actionLabel="Configure savings target"
+          onAction={() => setIsCreateOpen(true)}
+          className="rounded-panel bg-black/[0.02] dark:bg-white/[0.03] px-6 py-5 animate-fade-in"
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {goals.map((g) => (
@@ -163,112 +157,94 @@ export const GoalList: React.FC = () => {
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* MODALS OVERLAYS */}
-      {/* ========================================== */}
+      {/*
+        Dialogs. The shared Modal owns the overlay, focus trap, Escape,
+        focus restoration, body scroll lock and the close button; the forms
+        and their handlers below are unchanged.
+      */}
+      <Modal
+        open={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        returnFocusRef={headerActionRef}
+        title="Setup Savings Milestone"
+        size="md"
+      >
+        <GoalForm
+          onSubmit={handleCreateSubmit}
+          onCancel={() => setIsCreateOpen(false)}
+          isPending={createMutation.isPending}
+        />
+      </Modal>
 
-      {/* Create Modal */}
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsCreateOpen(false)} />
-          <div className="bg-white dark:bg-card-dark p-8 rounded-3xl border border-border-light dark:border-border-dark shadow-premium-dark w-full max-w-md relative animate-slide-up pointer-events-auto">
-            <button
-              onClick={() => setIsCreateOpen(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111622] text-text-secondaryLight"
+      <Modal
+        open={!!selectedEdit}
+        onClose={() => setSelectedEdit(null)}
+        title="Modify savings Target"
+        size="md"
+      >
+        {selectedEdit && (
+          <GoalForm
+            initialData={selectedEdit}
+            onSubmit={handleEditSubmit}
+            onCancel={() => setSelectedEdit(null)}
+            isPending={updateMutation.isPending}
+          />
+        )}
+      </Modal>
+
+      {/* Destructive: a stray backdrop click should not dismiss this. */}
+      <Modal
+        open={!!selectedDelete}
+        onClose={() => setSelectedDelete(null)}
+        title="Confirm Delete Savings Goal"
+        size="sm"
+        closeOnBackdrop={false}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setSelectedDelete(null)}
+              disabled={deleteMutation.isPending}
             >
-              <X className="w-4.5 h-4.5" />
-            </button>
-            <h2 className="font-outfit text-xl font-bold tracking-tight mb-4 flex items-center gap-2">
-              <Target className="w-5 h-5 text-brand-primary" /> Setup Savings Milestone
-            </h2>
-            <GoalForm
-              onSubmit={handleCreateSubmit}
-              onCancel={() => setIsCreateOpen(false)}
-              isPending={createMutation.isPending}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {selectedEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedEdit(null)} />
-          <div className="bg-white dark:bg-card-dark p-8 rounded-3xl border border-border-light dark:border-border-dark shadow-premium-dark w-full max-w-md relative animate-slide-up pointer-events-auto">
-            <button
-              onClick={() => setSelectedEdit(null)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111622] text-text-secondaryLight"
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDeleteConfirm}
+              loading={deleteMutation.isPending}
             >
-              <X className="w-4.5 h-4.5" />
-            </button>
-            <h2 className="font-outfit text-xl font-bold tracking-tight mb-4 flex items-center gap-2">
-              <Target className="w-5 h-5 text-brand-secondary" /> Modify savings Target
-            </h2>
-            <GoalForm
-              initialData={selectedEdit}
-              onSubmit={handleEditSubmit}
-              onCancel={() => setSelectedEdit(null)}
-              isPending={updateMutation.isPending}
-            />
-          </div>
+              Yes, Delete
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3 text-left">
+          <span className="w-10 h-10 shrink-0 rounded-control bg-finance-expense/10 text-finance-expense flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5" aria-hidden="true" />
+          </span>
+          <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark leading-relaxed">
+            Are you sure you want to permanently delete this savings goal milestone?
+          </p>
         </div>
-      )}
+      </Modal>
 
-      {/* Delete Modal */}
-      {selectedDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedDelete(null)} />
-          <div className="bg-white dark:bg-card-dark p-7 rounded-3xl border border-border-light dark:border-border-dark shadow-premium-dark w-full max-w-sm relative animate-slide-up pointer-events-auto text-left">
-            <div className="w-12 h-12 rounded-2xl bg-finance-expense/10 text-finance-expense flex items-center justify-center mb-4">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <h3 className="font-outfit font-bold text-lg">Confirm Delete Savings Goal</h3>
-            <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-2 leading-relaxed">
-              Are you sure you want to permanently delete this savings goal milestone?
-            </p>
-            <div className="flex justify-end gap-3 mt-6 border-t border-border-light/40 dark:border-border-dark/40 pt-4">
-              <button
-                onClick={() => setSelectedDelete(null)}
-                disabled={deleteMutation.isPending}
-                className="px-4 py-2 rounded-xl border border-border-light dark:border-border-dark text-xs font-semibold hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={deleteMutation.isPending}
-                className="px-4 py-2 rounded-xl bg-finance-expense text-white text-xs font-semibold flex items-center gap-1 shadow hover:bg-rose-600 transition-colors disabled:opacity-50"
-              >
-                {deleteMutation.isPending && <Loader2 className="w-3 animate-spin" />}
-                <span>Yes, Delete</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Contribute Funds Modal */}
-      {selectedContribute && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedContribute(null)} />
-          <div className="bg-white dark:bg-card-dark p-8 rounded-3xl border border-border-light dark:border-border-dark shadow-premium-dark w-full max-w-md relative animate-slide-up pointer-events-auto">
-            <button
-              onClick={() => setSelectedContribute(null)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111622] text-text-secondaryLight"
-            >
-              <X className="w-4.5 h-4.5" />
-            </button>
-            <h2 className="font-outfit text-xl font-bold tracking-tight mb-4 flex items-center gap-2">
-              <Coins className="w-5 h-5 text-brand-primary" /> Save Funds: {selectedContribute.name}
-            </h2>
-            <GoalContributionModal
-              onSubmit={handleContributeSubmit}
-              onCancel={() => setSelectedContribute(null)}
-              isPending={contributeMutation.isPending}
-            />
-          </div>
-        </div>
-      )}
+      <Modal
+        open={!!selectedContribute}
+        onClose={() => setSelectedContribute(null)}
+        title={
+          selectedContribute ? `Save Funds: ${selectedContribute.name}` : 'Save Funds'
+        }
+        size="md"
+      >
+        {selectedContribute && (
+          <GoalContributionModal
+            currency={selectedContribute.currency}
+            onSubmit={handleContributeSubmit}
+            onCancel={() => setSelectedContribute(null)}
+            isPending={contributeMutation.isPending}
+          />
+        )}
+      </Modal>
     </div>
   );
 };

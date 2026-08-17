@@ -10,6 +10,9 @@ import TransactionTable from './TransactionTable';
 import TransactionCard from './TransactionCard';
 import TransactionForm from './TransactionForm';
 import TransactionDetails from './TransactionDetails';
+import PageHeader from '../../components/ui/PageHeader';
+import Button from '../../components/ui/Button';
+import Modal from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 import {
   Search,
@@ -17,7 +20,6 @@ import {
   Plus,
   ArrowRight,
   ArrowLeft,
-  DollarSign,
   TrendingDown,
   TrendingUp,
   Tag,
@@ -137,22 +139,18 @@ export const TransactionList: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Banner Control */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border-light dark:border-border-dark pb-6">
-        <div>
-          <h1 className="font-outfit text-3xl font-bold tracking-tight">Transactions</h1>
-          <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark mt-1">
-            Track, filter, and audit your cash inflow and outflow transactions.
-          </p>
-        </div>
-        <button
-          onClick={() => setIsCreateOpen(true)}
-          className="flex items-center gap-1.5 px-4 py-3 rounded-xl bg-brand-primary text-white text-xs font-semibold hover:bg-emerald-600 transition-all cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Add Transaction
-        </button>
-      </div>
+      {/* Shared PageHeader primitive — same title, subtitle, action and
+          responsive behaviour, one definition. */}
+      <PageHeader
+        title="Transactions"
+        subtitle="Track, filter, and audit your cash inflow and outflow transactions."
+        divider
+        action={
+          <Button icon={Plus} onClick={() => setIsCreateOpen(true)}>
+            Add Transaction
+          </Button>
+        }
+      />
 
       {/* Filter panel card */}
       <div className="bg-white dark:bg-card-dark p-5 rounded-2xl border border-border-light dark:border-border-dark shadow-premium dark:shadow-premium-dark space-y-4">
@@ -171,12 +169,12 @@ export const TransactionList: React.FC = () => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="w-full pl-10 pr-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all"
+              className="w-full pl-10 pr-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-surface-sunk text-sm focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all"
             />
           </div>
 
           {/* Type Segment Filter */}
-          <div className="grid grid-cols-3 gap-2 p-1 rounded-xl bg-slate-50 dark:bg-[#111622] border border-border-light dark:border-border-dark">
+          <div className="grid grid-cols-3 gap-2 p-1 rounded-xl bg-slate-50 dark:bg-surface-sunk border border-border-light dark:border-border-dark">
             <button
               onClick={() => { setType(''); setPage(1); }}
               className={`py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -220,7 +218,7 @@ export const TransactionList: React.FC = () => {
             <select
               value={categoryId}
               onChange={(e) => { setCategoryId(e.target.value); setPage(1); }}
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-xs focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all appearance-none"
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-surface-sunk text-xs focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all appearance-none"
             >
               <option value="">All Categories</option>
               {categories.map((cat: any) => (
@@ -240,7 +238,7 @@ export const TransactionList: React.FC = () => {
               type="date"
               value={startDate}
               onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-xs focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all text-text-secondaryLight dark:text-text-secondaryDark"
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-surface-sunk text-xs focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all text-text-secondaryLight dark:text-text-secondaryDark"
             />
           </div>
 
@@ -253,14 +251,14 @@ export const TransactionList: React.FC = () => {
               type="date"
               value={endDate}
               onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-[#111622] text-xs focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all text-text-secondaryLight dark:text-text-secondaryDark"
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-border-light dark:border-border-dark bg-slate-50 dark:bg-surface-sunk text-xs focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all text-text-secondaryLight dark:text-text-secondaryDark"
             />
           </div>
 
           {/* Clear Filters Button */}
           <button
             onClick={clearFilters}
-            className="w-full py-2 px-3 rounded-xl border border-border-light dark:border-border-dark text-xs font-semibold hover:bg-slate-50 dark:hover:bg-[#111622] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            className="w-full py-2 px-3 rounded-xl border border-border-light dark:border-border-dark text-xs font-semibold hover:bg-slate-50 dark:hover:bg-surface-sunk flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
             Clear Filters
@@ -273,10 +271,10 @@ export const TransactionList: React.FC = () => {
         {listLoading ? (
           // Skeletons list
           <div className="space-y-4 py-4 animate-pulse">
-            <div className="h-6 bg-slate-100 dark:bg-[#111622] rounded-lg w-full" />
-            <div className="h-12 bg-slate-100 dark:bg-[#111622] rounded-xl w-full" />
-            <div className="h-12 bg-slate-100 dark:bg-[#111622] rounded-xl w-full" />
-            <div className="h-12 bg-slate-100 dark:bg-[#111622] rounded-xl w-full" />
+            <div className="h-6 bg-slate-100 dark:bg-surface-sunk rounded-lg w-full" />
+            <div className="h-12 bg-slate-100 dark:bg-surface-sunk rounded-xl w-full" />
+            <div className="h-12 bg-slate-100 dark:bg-surface-sunk rounded-xl w-full" />
+            <div className="h-12 bg-slate-100 dark:bg-surface-sunk rounded-xl w-full" />
           </div>
         ) : isError ? (
           // Error State
@@ -290,7 +288,7 @@ export const TransactionList: React.FC = () => {
         ) : transactions.length === 0 ? (
           // Empty State
           <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-            <div className="w-16 h-16 rounded-full bg-slate-50 dark:bg-[#111622] flex items-center justify-center text-text-secondaryLight dark:text-text-secondaryDark mb-4 border border-dashed border-border-light dark:border-border-dark">
+            <div className="w-16 h-16 rounded-full bg-slate-50 dark:bg-surface-sunk flex items-center justify-center text-text-secondaryLight dark:text-text-secondaryDark mb-4 border border-dashed border-border-light dark:border-border-dark">
               <Search className="w-6 h-6" />
             </div>
             <h3 className="font-outfit font-bold text-lg mb-1 text-text-primaryLight dark:text-text-primaryDark">No transactions found</h3>
@@ -337,7 +335,7 @@ export const TransactionList: React.FC = () => {
                 <button
                   onClick={() => setPage((p) => Math.max(p - 1, 1))}
                   disabled={page === 1}
-                  className="flex items-center gap-1 px-3.5 py-2 rounded-xl border border-border-light dark:border-border-dark text-xs font-semibold hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                  className="flex items-center gap-1 px-3.5 py-2 rounded-xl border border-border-light dark:border-border-dark text-xs font-semibold hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors disabled:opacity-40 disabled:pointer-events-none"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" /> Prev
                 </button>
@@ -347,7 +345,7 @@ export const TransactionList: React.FC = () => {
                 <button
                   onClick={() => setPage((p) => Math.min(p + 1, pagination.pages))}
                   disabled={page === pagination.pages}
-                  className="flex items-center gap-1 px-3.5 py-2 rounded-xl border border-border-light dark:border-border-dark text-xs font-semibold hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                  className="flex items-center gap-1 px-3.5 py-2 rounded-xl border border-border-light dark:border-border-dark text-xs font-semibold hover:bg-slate-50 dark:hover:bg-surface-sunk transition-colors disabled:opacity-40 disabled:pointer-events-none"
                 >
                   Next <ArrowRight className="w-3.5 h-3.5" />
                 </button>
@@ -361,97 +359,82 @@ export const TransactionList: React.FC = () => {
       {/* MODALS RENDER OVERLAYS */}
       {/* ========================================== */}
 
-      {/* Create Transaction Modal */}
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsCreateOpen(false)} />
-          <div className="bg-white dark:bg-card-dark p-8 rounded-3xl border border-border-light dark:border-border-dark shadow-premium-dark w-full max-w-lg relative animate-slide-up pointer-events-auto">
-            <button
-              type="button"
-              aria-label="Close"
-              onClick={() => setIsCreateOpen(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111622] text-text-secondaryLight"
-            >
-              <X className="w-4.5 h-4.5" />
-            </button>
-            <h2 className="font-outfit text-xl font-bold tracking-tight mb-4 flex items-center gap-2">
-              <TrendingDown className="w-5 h-5 text-brand-primary" /> Log New Transaction
-            </h2>
-            <TransactionForm
-              onSubmit={handleCreateSubmit}
-              onCancel={() => setIsCreateOpen(false)}
-              isPending={createMutation.isPending}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Edit Transaction Modal */}
-      {selectedEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedEdit(null)} />
-          <div className="bg-white dark:bg-card-dark p-8 rounded-3xl border border-border-light dark:border-border-dark shadow-premium-dark w-full max-w-lg relative animate-slide-up pointer-events-auto">
-            <button
-              type="button"
-              aria-label="Close"
-              onClick={() => setSelectedEdit(null)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-slate-50 dark:hover:bg-[#111622] text-text-secondaryLight"
-            >
-              <X className="w-4.5 h-4.5" />
-            </button>
-            <h2 className="font-outfit text-xl font-bold tracking-tight mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-brand-secondary" /> Modify Transaction
-            </h2>
-            <TransactionForm
-              initialData={selectedEdit}
-              onSubmit={handleEditSubmit}
-              onCancel={() => setSelectedEdit(null)}
-              isPending={updateMutation.isPending}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* View Details Modal */}
-      {selectedDetails && (
-        <TransactionDetails
-          transaction={selectedDetails}
-          onClose={() => setSelectedDetails(null)}
+      {/*
+        Dialogs. The shared Modal owns the overlay, focus trap, Escape, focus
+        restoration, body scroll lock and the close button; the forms and their
+        handlers below are unchanged.
+      */}
+      <Modal
+        open={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        title="Log New Transaction"
+        size="lg"
+      >
+        <TransactionForm
+          onSubmit={handleCreateSubmit}
+          onCancel={() => setIsCreateOpen(false)}
+          isPending={createMutation.isPending}
         />
-      )}
+      </Modal>
 
-      {/* Delete Confirmation Alert Modal */}
-      {selectedDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedDelete(null)} />
-          <div className="bg-white dark:bg-card-dark p-7 rounded-3xl border border-border-light dark:border-border-dark shadow-premium-dark w-full max-w-sm relative animate-slide-up pointer-events-auto text-left">
-            <div className="w-12 h-12 rounded-2xl bg-finance-expense/10 text-finance-expense flex items-center justify-center mb-4">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <h3 className="font-outfit font-bold text-lg">Confirm Delete Transaction</h3>
-            <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-2 leading-relaxed">
-              Are you sure you want to permanently delete this transaction? This action is irreversible.
-            </p>
-            <div className="flex justify-end gap-3 mt-6 border-t border-border-light/40 dark:border-border-dark/40 pt-4">
-              <button
-                onClick={() => setSelectedDelete(null)}
-                disabled={deleteMutation.isPending}
-                className="px-4 py-2 rounded-xl border border-border-light dark:border-border-dark text-xs font-semibold hover:bg-slate-50 dark:hover:bg-[#111622] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={deleteMutation.isPending}
-                className="px-4 py-2 rounded-xl bg-finance-expense text-white text-xs font-semibold flex items-center gap-1 shadow hover:bg-rose-600 transition-colors disabled:opacity-50"
-              >
-                {deleteMutation.isPending && <Loader2 className="w-3 animate-spin" />}
-                <span>Yes, Delete</span>
-              </button>
-            </div>
-          </div>
+      <Modal
+        open={!!selectedEdit}
+        onClose={() => setSelectedEdit(null)}
+        title="Modify Transaction"
+        size="lg"
+      >
+        {selectedEdit && (
+          <TransactionForm
+            initialData={selectedEdit}
+            onSubmit={handleEditSubmit}
+            onCancel={() => setSelectedEdit(null)}
+            isPending={updateMutation.isPending}
+          />
+        )}
+      </Modal>
+
+      {/* View Details Modal — owns its own Modal wrapper. */}
+      <TransactionDetails
+        transaction={selectedDetails}
+        onClose={() => setSelectedDetails(null)}
+      />
+
+      {/* Destructive: a stray backdrop click should not dismiss this. */}
+      <Modal
+        open={!!selectedDelete}
+        onClose={() => setSelectedDelete(null)}
+        title="Confirm Delete Transaction"
+        size="sm"
+        closeOnBackdrop={false}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setSelectedDelete(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleDeleteConfirm}
+              loading={deleteMutation.isPending}
+            >
+              Yes, Delete
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-start gap-3 text-left">
+          <span className="w-10 h-10 shrink-0 rounded-control bg-finance-expense/10 text-finance-expense flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5" aria-hidden="true" />
+          </span>
+          <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark leading-relaxed">
+            Are you sure you want to permanently delete this transaction? This action is
+            irreversible.
+          </p>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

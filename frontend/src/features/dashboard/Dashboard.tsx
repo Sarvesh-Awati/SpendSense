@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useDashboardMetrics } from '../../services/dashboard';
 import { useCreateTransaction } from '../../services/transactions';
 import { useAuth } from '../../context/AuthContext';
@@ -18,6 +18,7 @@ import SubscriptionsSummaryWidget from './SubscriptionsSummaryWidget';
 import FinancialHealth from './FinancialHealth';
 import InsightCard from './InsightCard';
 import QuickAdd from './QuickAdd';
+import Modal from '../../components/ui/Modal';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -238,43 +239,26 @@ export const Dashboard: React.FC = () => {
       <QuickAdd onAddExpense={openExpense} onAddIncome={openIncome} />
 
       {/* ═══ Shared composer — reuses the existing TransactionForm ═══ */}
-      {composerType && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label={composerType === 'INCOME' ? 'Add income' : 'Add expense'}
-        >
-          <div
-            className="absolute inset-0 bg-[#080B0F]/75 backdrop-blur-sm"
-            onClick={() => setComposerType(null)}
+      {/* Shared Modal primitive owns the overlay, focus trap, Escape and
+          focus restoration. The form itself is untouched. */}
+      <Modal
+        open={composerType !== null}
+        onClose={() => setComposerType(null)}
+        title={composerType === 'INCOME' ? 'Add Income' : 'Add Expense'}
+        size="md"
+      >
+        {composerType && (
+          <TransactionForm
+            initialData={{
+              type: composerType,
+              date: new Date().toISOString().split('T')[0],
+            }}
+            onSubmit={handleCreate}
+            isPending={createTransaction.isPending}
+            onCancel={() => setComposerType(null)}
           />
-          <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-card bg-white dark:bg-surface-raised border border-border-light dark:border-white/[0.06] p-7 shadow-float-dark motion-safe:animate-slide-up">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-outfit text-xl font-bold tracking-tight">
-                {composerType === 'INCOME' ? 'Add Income' : 'Add Expense'}
-              </h2>
-              <button
-                onClick={() => setComposerType(null)}
-                aria-label="Close"
-                className="p-2 rounded-full text-text-secondaryLight hover:bg-black/5 dark:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 transition-colors"
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            <TransactionForm
-              initialData={{
-                type: composerType,
-                date: new Date().toISOString().split('T')[0],
-              }}
-              onSubmit={handleCreate}
-              isPending={createTransaction.isPending}
-              onCancel={() => setComposerType(null)}
-            />
-          </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

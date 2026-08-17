@@ -94,7 +94,7 @@ export const ForgotPassword: React.FC = () => {
             type="email"
             placeholder="john.doe@example.com"
             disabled={forgotPasswordMutation.isPending}
-            className={`w-full pl-11 pr-4 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all ${
+            className={`w-full pl-11 pr-4 py-3 rounded-xl border bg-slate-50 dark:bg-surface-sunk text-sm focus:outline-none focus:ring-1 transition-all ${
               errors.email
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'

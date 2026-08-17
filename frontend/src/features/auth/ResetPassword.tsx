@@ -189,7 +189,7 @@ export const ResetPassword: React.FC = () => {
             type={showPassword ? 'text' : 'password'}
             placeholder="••••••••"
             disabled={resetPasswordMutation.isPending}
-            className={`w-full pl-11 pr-11 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all ${
+            className={`w-full pl-11 pr-11 py-3 rounded-xl border bg-slate-50 dark:bg-surface-sunk text-sm focus:outline-none focus:ring-1 transition-all ${
               errors.password
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
@@ -223,7 +223,7 @@ export const ResetPassword: React.FC = () => {
             type={showConfirmPassword ? 'text' : 'password'}
             placeholder="••••••••"
             disabled={resetPasswordMutation.isPending}
-            className={`w-full pl-11 pr-11 py-3 rounded-xl border bg-slate-50 dark:bg-[#111622] text-sm focus:outline-none focus:ring-1 transition-all ${
+            className={`w-full pl-11 pr-11 py-3 rounded-xl border bg-slate-50 dark:bg-surface-sunk text-sm focus:outline-none focus:ring-1 transition-all ${
               errors.confirmPassword
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'

@@ -23,6 +23,10 @@ export default {
         // Named surfaces for the light-inside-dark composition.
         surface: {
           raised: '#20252B',  // Secondary dark surface (one step up from panel)
+          // Recessed surface: inputs, wells, progress tracks, hover fills.
+          // Previously written as the literal `bg-[#111622]` in 114 places;
+          // this makes it a token so it can be themed in one edit.
+          sunk: '#111622',
           paper: '#F7F7F4',   // Warm off-white card placed on the dark canvas
           paperMuted: '#EDEDE8',
         },
@@ -81,20 +85,37 @@ export default {
           '100%': { transform: 'translateY(0)', opacity: '1' },
         },
       },
+      /**
+       * Semantic radius scale — one ladder, named by role rather than size.
+       * Tailwind's numeric defaults (rounded-lg/xl/2xl/3xl) are intentionally
+       * left intact so existing markup is unaffected; new work should use
+       * these names, and migration happens per-component in later passes.
+       */
       borderRadius: {
-        // Reference language: large, soft containers.
-        'panel': '20px',
-        'card': '28px',
-        'hero': '32px',
+        'control': '12px', // buttons, inputs, chips, small controls
+        'panel': '20px',   // compact modules
+        'card': '28px',    // standard surfaces and modals
+        'hero': '32px',    // the single dominant surface
       },
+      /**
+       * Semantic elevation scale — one ladder, two tones.
+       * e1 rests, e2 floats, e3 overlays. `premium`/`float` are retained as
+       * aliases of e1/e2 so the ~49 existing usages keep working and resolve
+       * to the same consistent values.
+       */
       boxShadow: {
-        'premium': '0 6px 16px rgba(0, 0, 0, 0.08)',
-        'premium-dark': '0 6px 16px rgba(0, 0, 0, 0.6)',
-        // Floating panels: wide, soft, low-opacity — never a hard drop shadow.
+        'e1': '0 1px 2px rgba(8, 11, 15, 0.04), 0 4px 12px -4px rgba(8, 11, 15, 0.08)',
+        'e1-dark': '0 1px 3px rgba(0, 0, 0, 0.30), 0 6px 16px -6px rgba(0, 0, 0, 0.45)',
+        'e2': '0 2px 4px rgba(8, 11, 15, 0.04), 0 12px 32px -8px rgba(8, 11, 15, 0.10)',
+        'e2-dark': '0 2px 6px rgba(0, 0, 0, 0.35), 0 18px 44px -12px rgba(0, 0, 0, 0.55)',
+        'e3': '0 8px 16px rgba(8, 11, 15, 0.08), 0 24px 56px -12px rgba(8, 11, 15, 0.18)',
+        'e3-dark': '0 8px 20px rgba(0, 0, 0, 0.45), 0 32px 72px -16px rgba(0, 0, 0, 0.65)',
+
+        // Legacy aliases -> the scale above. Kept so existing markup is stable.
+        'premium': '0 1px 2px rgba(8, 11, 15, 0.04), 0 4px 12px -4px rgba(8, 11, 15, 0.08)',
+        'premium-dark': '0 1px 3px rgba(0, 0, 0, 0.30), 0 6px 16px -6px rgba(0, 0, 0, 0.45)',
         'float': '0 2px 4px rgba(8, 11, 15, 0.04), 0 12px 32px -8px rgba(8, 11, 15, 0.10)',
         'float-dark': '0 2px 6px rgba(0, 0, 0, 0.35), 0 18px 44px -12px rgba(0, 0, 0, 0.55)',
-        'glow-green': 'none',
-        'glow-indigo': 'none',
       }
     },
   },
