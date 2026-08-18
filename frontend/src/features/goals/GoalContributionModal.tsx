@@ -3,14 +3,24 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { currencySymbol, FALLBACK_CURRENCY } from '../../utils/formatCurrency';
-import { Field, Input, controlClasses } from '../../components/ui/Field';
+import { Field, controlClasses } from '../../components/ui/Field';
 import Button from '../../components/ui/Button';
 
+/**
+ * Amount only.
+ *
+ * This form used to collect a contribution date as well, and then throw it
+ * away: `POST /goals/:id/contribute` accepts `{ amount }` and nothing else,
+ * because contributions are applied as an atomic increment to the goal's
+ * balance rather than recorded as dated rows. Asking for a date the system
+ * cannot honour is worse than not asking — the user reasonably believes they
+ * are backdating a contribution. Restoring the field belongs with a proper
+ * append-only contribution ledger, not before it.
+ */
 const contributionFormSchema = z.object({
   amount: z.coerce
     .number({ required_error: 'Contribution amount is required' })
     .positive({ message: 'Contribution amount must be a positive number' }),
-  date: z.string().min(1, { message: 'Date is required' }),
 });
 
 type ContributionFormValues = z.infer<typeof contributionFormSchema>;
@@ -41,7 +51,6 @@ export const GoalContributionModal: React.FC<GoalContributionModalProps> = ({
     resolver: zodResolver(contributionFormSchema),
     defaultValues: {
       amount: undefined as any,
-      date: new Date().toISOString().split('T')[0],
     },
   });
 
@@ -74,10 +83,6 @@ export const GoalContributionModal: React.FC<GoalContributionModalProps> = ({
             />
           </div>
         )}
-      </Field>
-
-      <Field label="Contribution Date" error={errors.date?.message} disabled={isPending}>
-        {(ids) => <Input {...ids} type="date" hasError={!!errors.date} {...register('date')} />}
       </Field>
 
       <div className="flex justify-end gap-3 pt-3 border-t border-border-light dark:border-border-dark mt-6">

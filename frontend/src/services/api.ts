@@ -1,8 +1,22 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
+/**
+ * Where the API lives.
+ *
+ * Development leaves `VITE_API_URL` unset and falls back to `/api`, which the
+ * Vite dev server proxies to localhost:5001 — no configuration needed to run
+ * locally. In production the frontend and API are deployed to different hosts
+ * (Vercel and Render), so `/api` resolves to the static host and every request
+ * 404s; `VITE_API_URL` must point at the API's origin. It is baked in at build
+ * time, so changing it requires a rebuild.
+ */
+export const API_BASE_URL = import.meta.env.VITE_API_URL
+  ? `${String(import.meta.env.VITE_API_URL).replace(/\/+$/, '')}/api`
+  : '/api';
+
 // Create custom Axios instance
 export const api = axios.create({
-  baseURL: '/api', // Uses Vite proxy in development
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -84,8 +98,14 @@ api.interceptors.response.use(
     }
 
     try {
-      // Request new tokens using refresh token
-      const response = await axios.post('/api/auth/refresh', {
+      /**
+       * Deliberately a bare axios call, not `api` — routing this through the
+       * instance would re-enter this same interceptor if the refresh itself
+       * 401s. It still has to use API_BASE_URL: hardcoding '/api' sent the
+       * refresh to the static host in production, so every expired session
+       * became a forced logout.
+       */
+      const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
         refreshToken,
       });
 

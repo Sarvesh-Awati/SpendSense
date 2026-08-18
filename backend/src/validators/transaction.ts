@@ -49,6 +49,21 @@ export const updateTransactionSchema = z.object({
   }),
 });
 
+/**
+ * Columns a client may sort by.
+ *
+ * This was previously an open `z.string()`, so `?sortBy=<anything>` reached
+ * Prisma as an orderBy key and failed the request. An allowlist keeps the
+ * surface to columns that actually exist and are meaningful to order on.
+ */
+export const TRANSACTION_SORT_FIELDS = [
+  'date',
+  'amount',
+  'createdAt',
+  'merchant',
+  'type',
+] as const;
+
 export const getTransactionsQuerySchema = z.object({
   query: z.object({
     page: z.coerce.number().int().min(1).default(1),
@@ -65,7 +80,21 @@ export const getTransactionsQuerySchema = z.object({
       .optional(),
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
-    sortBy: z.string().default('date'),
+    minAmount: z.coerce.number().nonnegative().optional(),
+    maxAmount: z.coerce.number().nonnegative().optional(),
+    sortBy: z
+      .enum(TRANSACTION_SORT_FIELDS, {
+        errorMap: () => ({
+          message: `sortBy must be one of: ${TRANSACTION_SORT_FIELDS.join(', ')}`,
+        }),
+      })
+      .default('date'),
     sortOrder: z.enum(['asc', 'desc']).default('desc'),
   }),
-});
+}).refine(
+  (data) =>
+    data.query.minAmount === undefined ||
+    data.query.maxAmount === undefined ||
+    data.query.maxAmount >= data.query.minAmount,
+  { message: 'maxAmount must be greater than or equal to minAmount', path: ['query', 'maxAmount'] }
+);

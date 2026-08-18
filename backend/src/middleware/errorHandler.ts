@@ -85,7 +85,39 @@ export const errorHandler = (
     return;
   }
 
-  // 5. Anything else is an unexpected fault. Log it in full, return nothing
+  // 5. Oversize JSON body. body-parser raises this with `type` set; it is bad
+  //    input, not a server fault, and must not read as a 500.
+  if ((err as { type?: string }).type === 'entity.too.large') {
+    res.status(413).json({
+      status: 'error',
+      statusCode: 413,
+      message: 'Request body is too large.',
+    });
+    return;
+  }
+
+  // 6. Malformed JSON body. Same reasoning — a client typo is a 400.
+  if (err instanceof SyntaxError && 'body' in err) {
+    res.status(400).json({
+      status: 'error',
+      statusCode: 400,
+      message: 'Request body is not valid JSON.',
+    });
+    return;
+  }
+
+  // 7. Rejected by the CORS allowlist. A 403 states the policy plainly; the
+  //    allowlist itself is never disclosed.
+  if (err.message === 'Origin not allowed by CORS policy') {
+    res.status(403).json({
+      status: 'error',
+      statusCode: 403,
+      message: 'Origin not allowed.',
+    });
+    return;
+  }
+
+  // 8. Anything else is an unexpected fault. Log it in full, return nothing
   //    about it — in ANY environment, not just production.
   const correlationId = Math.random().toString(36).slice(2, 10);
   console.error(`🔥 Unexpected Error [${correlationId}] ${req.method} ${req.originalUrl}:`, err);

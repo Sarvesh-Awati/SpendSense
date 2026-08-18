@@ -5,10 +5,9 @@ import { z } from 'zod';
 import { useAuth } from '../../context/AuthContext';
 import {
   FALLBACK_CURRENCY,
-  SUPPORTED_CURRENCIES,
   currencySymbol,
 } from '../../utils/formatCurrency';
-import { Field, Input, Select, controlClasses } from '../../components/ui/Field';
+import { Field, Input, controlClasses } from '../../components/ui/Field';
 import Button from '../../components/ui/Button';
 import { Target } from 'lucide-react';
 
@@ -53,11 +52,12 @@ export const GoalForm: React.FC<GoalFormProps> = ({
 
   const { user } = useAuth();
   const preferredCurrency = user?.preferredCurrency || FALLBACK_CURRENCY;
+  /** The account's reporting currency. Not user-selectable here — see below. */
+  const accountCurrency = preferredCurrency;
 
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors },
   } = useForm<GoalFormValues>({
     resolver: zodResolver(goalFormSchema),
@@ -101,10 +101,10 @@ export const GoalForm: React.FC<GoalFormProps> = ({
               <span
                 aria-hidden="true"
                 className={`absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/60 dark:text-text-secondaryDark/50 ${
-                  currencySymbol(watch('currency')).length > 1 ? 'text-[11px]' : 'text-sm'
+                  currencySymbol(accountCurrency).length > 1 ? 'text-[11px]' : 'text-sm'
                 }`}
               >
-                {currencySymbol(watch('currency'))}
+                {currencySymbol(accountCurrency)}
               </span>
               <input
                 {...ids}
@@ -118,15 +118,26 @@ export const GoalForm: React.FC<GoalFormProps> = ({
           )}
         </Field>
 
-        <Field label="Currency" error={errors.currency?.message} disabled={isPending}>
+        {/*
+          Read-only, deliberately.
+
+          This was a full currency picker, but the API ignores whatever it
+          sends: Goals are always denominated in the account's reporting
+          currency so that limits and converted spend share one unit and no FX
+          happens in the maths. Offering a choice that is silently discarded
+          told the user they had set EUR when the record was stored in {accountCurrency}.
+        */}
+        <Field label="Currency">
           {(ids) => (
-            <Select {...ids} hasError={!!errors.currency} {...register('currency')}>
-              {SUPPORTED_CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.label}
-                </option>
-              ))}
-            </Select>
+            <div
+              {...ids}
+              className={`${controlClasses(false, false)} flex items-center justify-between cursor-not-allowed opacity-80`}
+            >
+              <span>{accountCurrency}</span>
+              <span className="text-xs text-text-secondaryLight dark:text-text-secondaryDark">
+                Account currency
+              </span>
+            </div>
           )}
         </Field>
       </div>
@@ -143,10 +154,10 @@ export const GoalForm: React.FC<GoalFormProps> = ({
               <span
                 aria-hidden="true"
                 className={`absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/60 dark:text-text-secondaryDark/50 ${
-                  currencySymbol(watch('currency')).length > 1 ? 'text-[11px]' : 'text-sm'
+                  currencySymbol(accountCurrency).length > 1 ? 'text-[11px]' : 'text-sm'
                 }`}
               >
-                {currencySymbol(watch('currency'))}
+                {currencySymbol(accountCurrency)}
               </span>
               <input
                 {...ids}

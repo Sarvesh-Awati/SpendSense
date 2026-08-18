@@ -22,7 +22,7 @@ import {
   Target,
   TrendingUp,
 } from 'lucide-react';
-import { useAnalytics } from '../../services/analytics';
+import { useAnalytics, useAnalyticsInsights } from '../../services/analytics';
 import { useAuth } from '../../context/AuthContext';
 import { toFiniteNumber } from '../../utils/formatCurrency';
 import Card, { SectionLabel } from '../../components/ui/Card';
@@ -46,6 +46,22 @@ const MIN_TREND_POINTS = 2;
 export const AnalyticsDashboard: React.FC = () => {
   const { user } = useAuth();
   const { data: response, isLoading, isError, error, isFetching, refetch } = useAnalytics();
+
+  /**
+   * The advisor is its own query now.
+   *
+   * It used to ride along inside the analytics payload, so a slow or failing
+   * Gemini call held every chart on the page hostage. Split out, the charts
+   * render as soon as the aggregates land and this panel resolves — or fails,
+   * and offers a retry that re-runs only the model — independently.
+   */
+  const {
+    data: insightsData,
+    isLoading: insightsLoading,
+    isFetching: insightsFetching,
+    isError: insightsError,
+    refetch: refetchInsights,
+  } = useAnalyticsInsights();
   // Reporting currency for every aggregated figure on this page. Falls back to
   // INR to match the rest of the app (and the User.preferredCurrency default);
   // it previously defaulted to USD, contradicting every other screen.
@@ -190,8 +206,9 @@ export const AnalyticsDashboard: React.FC = () => {
     },
   ];
 
-  const insights = response.data.aiInsights ?? [];
+  const insights = insightsData ?? [];
   const hasInsights = insights.length > 0;
+  const insightsPending = insightsLoading || insightsFetching;
 
   return (
     <div className="pb-24 animate-fade-in text-left">
@@ -420,8 +437,8 @@ export const AnalyticsDashboard: React.FC = () => {
                 variant="ghost"
                 size="sm"
                 icon={RefreshCw}
-                onClick={() => refetch()}
-                loading={isFetching}
+                onClick={() => refetchInsights()}
+                loading={insightsPending}
                 className="shrink-0"
               >
                 Refresh
@@ -435,7 +452,7 @@ export const AnalyticsDashboard: React.FC = () => {
             the model call fails — rendered "Generating…" forever, with no way
             to retry and nothing actually in flight.
           */}
-          {isFetching ? (
+          {insightsPending ? (
             <div className="mt-6 flex items-center gap-2.5 text-sm text-text-secondaryLight dark:text-text-secondaryDark">
               <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden="true" />
               <span>Analyzing your activity…</span>
@@ -460,10 +477,18 @@ export const AnalyticsDashboard: React.FC = () => {
           ) : (
             <EmptyState
               size="inline"
-              title="Insights aren’t available right now"
-              description="The advisor didn’t return anything for this period. That can happen when there’s little recent activity, or when the service is busy."
+              title={
+                insightsError
+                  ? 'Couldn’t reach the advisor'
+                  : 'Insights aren’t available right now'
+              }
+              description={
+                insightsError
+                  ? 'The insights service didn’t respond. Your charts above are unaffected.'
+                  : 'The advisor didn’t return anything for this period. That can happen when there’s little recent activity, or when the service is busy.'
+              }
               actionLabel="Try again"
-              onAction={() => refetch()}
+              onAction={() => refetchInsights()}
               className="mt-5 rounded-panel bg-black/[0.02] dark:bg-white/[0.03] px-6 py-5"
             />
           )}

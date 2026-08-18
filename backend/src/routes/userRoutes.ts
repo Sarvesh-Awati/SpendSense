@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { validate } from '../middleware/validate';
 import { authenticateUser } from '../middleware/auth';
+import { sensitiveActionLimiter } from '../middleware/rateLimiter';
 import { 
   updateProfile, 
   changePassword, 
@@ -15,10 +16,21 @@ const router = Router();
 router.use(authenticateUser);
 
 router.put('/profile', validate(updateProfileSchema), updateProfile);
-router.post('/change-password', validate(changePasswordSchema), changePassword);
+// Both of these verify `currentPassword`, so both are brute-force targets.
+router.post(
+  '/change-password',
+  sensitiveActionLimiter,
+  validate(changePasswordSchema),
+  changePassword
+);
 router.post('/logout-all', logoutAllDevices);
 router.get('/export', exportData);
 // Requires currentPassword in the body — see deleteAccountSchema.
-router.delete('/account', validate(deleteAccountSchema), deleteAccount);
+router.delete(
+  '/account',
+  sensitiveActionLimiter,
+  validate(deleteAccountSchema),
+  deleteAccount
+);
 
 export default router;

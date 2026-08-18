@@ -12,6 +12,7 @@ import {
   updateSubscription,
   deleteSubscription,
 } from '../controllers/subscriptionController';
+import { idParamSchema } from '../validators/common';
 
 const router = Router();
 
@@ -20,8 +21,8 @@ router.use(authenticateUser);
 
 router.post('/', validate(createSubscriptionSchema), createSubscription);
 router.get('/', getSubscriptions);
-router.get('/:id', getSubscriptionById);
-router.put('/:id', validate(updateSubscriptionSchema), updateSubscription);
-router.delete('/:id', deleteSubscription);
+router.get('/:id', validate(idParamSchema), getSubscriptionById);
+router.put('/:id', validate(idParamSchema), validate(updateSubscriptionSchema), updateSubscription);
+router.delete('/:id', validate(idParamSchema), deleteSubscription);
 
 export default router;

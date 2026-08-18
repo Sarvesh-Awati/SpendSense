@@ -2,15 +2,11 @@ import '../config/env';
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import authService from '../services/authService';
-import userRepository from '../repositories/UserRepository';
-import refreshTokenRepository from '../repositories/RefreshTokenRepository';
-import passwordResetTokenRepository from '../repositories/PasswordResetTokenRepository';
 import emailService from '../services/EmailService';
-import { hashPassword, comparePassword } from '../utils/password';
+import { comparePassword } from '../utils/password';
 import {
   ConflictError,
   UnauthorizedError,
-  NotFoundError,
   BadRequestError,
 } from '../errors/AppError';
 
@@ -269,7 +265,7 @@ async function runTests() {
 
   await runTest('Reset Password - Refresh tokens are invalidated after reset', async () => {
     // Login to create refresh tokens
-    const loginResult = await authService.login({
+    await authService.login({
       email: registeredEmail,
       password: STRONG_PASSWORD, // Current password after previous resets
     });

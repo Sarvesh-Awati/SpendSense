@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Settings, Lock, Moon, LogOut } from 'lucide-react';
+import { User, Settings, Moon, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../ui/Toast';
 import Avatar from './Avatar';

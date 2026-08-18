@@ -12,6 +12,7 @@ import {
   createBudgetSchema,
   updateBudgetSchema,
 } from '../validators/budget';
+import { idParamSchema } from '../validators/common';
 
 const router = Router();
 
@@ -20,8 +21,8 @@ router.use(authenticateUser);
 
 router.post('/', validate(createBudgetSchema), create);
 router.get('/', findAll);
-router.get('/:id', findById);
-router.put('/:id', validate(updateBudgetSchema), update);
-router.delete('/:id', remove);
+router.get('/:id', validate(idParamSchema), findById);
+router.put('/:id', validate(idParamSchema), validate(updateBudgetSchema), update);
+router.delete('/:id', validate(idParamSchema), remove);
 
 export default router;

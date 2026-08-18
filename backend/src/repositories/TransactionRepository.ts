@@ -66,11 +66,27 @@ export class TransactionRepository extends BaseRepository<Transaction> {
 
     const total = await this.count(where);
 
+    const sortBy = pagination.sortBy || 'date';
+    const sortOrder = pagination.sortOrder || 'desc';
+
+    /**
+     * `id` is the tiebreaker, and it is not optional.
+     *
+     * Postgres gives no ordering guarantee between rows that tie on the sort
+     * column, and it is free to answer two identical queries in different
+     * orders. With offset pagination that means a row seen on page 1 can
+     * reappear on page 2 while another is skipped entirely — most visible when
+     * sorting by `date`, where a whole day of transactions ties. Appending a
+     * unique column makes the total order deterministic.
+     */
+    const orderBy: Record<string, 'asc' | 'desc'>[] = [
+      { [sortBy]: sortOrder },
+      { id: sortOrder },
+    ];
+
     const transactions = await this.modelDelegate.findMany({
       where,
-      orderBy: {
-        [pagination.sortBy || 'date']: pagination.sortOrder || 'desc',
-      },
+      orderBy,
       skip: pagination.skip,
       take: pagination.take,
       include: {

@@ -293,7 +293,9 @@ export class DashboardService {
       } else {
         subMonthlyTotal += sub.monthlyEquivalentInBase;
       }
-      if (sub.daysUntilRenewal <= 14) {
+      // `daysUntilRenewal` is signed now, so the lower bound matters: a past
+      // renewal is not "upcoming".
+      if (sub.daysUntilRenewal >= 0 && sub.daysUntilRenewal <= 14) {
         upcomingRenewals.push(sub);
       }
     }
@@ -325,20 +327,40 @@ export class DashboardService {
       healthScore += (savingsRate / 20) * 40;
     }
 
-    // 2. Budget Adherence (max 30 points)
-    if (activeBudgets.length > 0) {
+    /**
+     * 2. Budget Adherence (max 30 points)
+     *
+     * Adherence is measured over CATEGORY budgets only.
+     *
+     * The previous version summed every active budget into one ratio: category
+     * budgets contributed their own category's spend, and an overall (no
+     * category) budget contributed the whole month's expenses. A user with
+     * both — the normal setup — had their grocery spending counted twice, once
+     * inside the category budget and again inside the overall one, inflating
+     * the ratio and pushing the score down for no reason.
+     *
+     * The overall budget is not dropped; it is scored separately below against
+     * total spending, which is the only thing it was ever meant to measure.
+     */
+    const categoryBudgets = activeBudgets.filter((b) => b.categoryId);
+    const overallBudget = activeBudgets.find((b) => !b.categoryId);
+
+    if (categoryBudgets.length > 0 || overallBudget) {
       let totalBudgetLimit = 0;
       let totalSpentAgainstBudget = 0;
-      for (const budget of activeBudgets) {
-        const limit = safeDecimal(budget.amount);
-        totalBudgetLimit += limit;
-        if (budget.categoryId) {
-          const catSpend = categorySpending.find(c => c.id === budget.categoryId);
-          totalSpentAgainstBudget += (catSpend ? catSpend.amount : 0);
-        } else {
-          totalSpentAgainstBudget += monthlyExpenses;
-        }
+
+      for (const budget of categoryBudgets) {
+        totalBudgetLimit += safeDecimal(budget.amount);
+        const catSpend = categorySpending.find(c => c.id === budget.categoryId);
+        totalSpentAgainstBudget += catSpend ? catSpend.amount : 0;
       }
+
+      if (overallBudget) {
+        totalBudgetLimit += safeDecimal(overallBudget.amount);
+        // Whatever the category budgets did not already account for.
+        totalSpentAgainstBudget += Math.max(0, monthlyExpenses - totalSpentAgainstBudget);
+      }
+
       if (totalBudgetLimit > 0) {
         const adherence = totalSpentAgainstBudget / totalBudgetLimit;
         if (adherence <= 0.8) {
@@ -395,15 +417,32 @@ export class DashboardService {
       quickInsights.push(`${nextSub.name} renews in ${nextSub.daysUntilRenewal} days.`);
     }
 
-    for (const budget of activeBudgets) {
+    /**
+     * Budget insights are measured over each budget's OWN date range.
+     *
+     * `categorySpending` and `monthlyExpenses` both cover the current calendar
+     * month, so a quarterly or annual budget was being judged on one month of
+     * spending and reported as comfortably under limit no matter how much of
+     * it had actually been consumed. The aggregate below is scoped to the
+     * budget's real window.
+     */
+    const budgetSpendByRange = await Promise.all(
+      activeBudgets.map((budget) =>
+        prisma.transaction.aggregate({
+          _sum: { convertedAmount: true },
+          where: {
+            userId,
+            type: CategoryType.EXPENSE,
+            date: { gte: budget.startDate, lte: budget.endDate },
+            ...(budget.categoryId ? { categoryId: budget.categoryId } : {}),
+          },
+        })
+      )
+    );
+
+    for (const [index, budget] of activeBudgets.entries()) {
       const limit = safeDecimal(budget.amount);
-      let spent = 0;
-      if (budget.categoryId) {
-        const catSpend = categorySpending.find(c => c.id === budget.categoryId);
-        spent = catSpend ? catSpend.amount : 0;
-      } else {
-        spent = monthlyExpenses;
-      }
+      const spent = safeDecimal(budgetSpendByRange[index]._sum.convertedAmount);
       if (limit > 0) {
         const usage = spent / limit;
         const name = budget.categoryId && budget.category ? budget.category.name : 'your overall';

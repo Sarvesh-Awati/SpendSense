@@ -56,11 +56,32 @@ export class GoalService {
       if (daysRemaining > 0) {
         const monthsRemaining = daysRemaining / 30.44; // avg days in month
         requiredMonthlyContribution = remainingAmount / monthsRemaining;
-        
-        // Simplified probability model (would normally use historical savings data)
-        if (progressPercentage >= (100 - (monthsRemaining * 5))) {
+
+        /**
+         * Probability compares progress made against time consumed.
+         *
+         * The previous model tested `progressPercentage >= 100 - months * 5`.
+         * For any goal more than 20 months out that threshold is negative, so
+         * 0% progress cleared it and a brand-new goal with nothing saved was
+         * reported as "High" — the one case where the user most needs to be
+         * told otherwise.
+         *
+         * Instead: a goal is on pace when the fraction saved is at least the
+         * fraction of its lifetime that has elapsed. Being ahead of that pace
+         * is High, meaningfully behind is Low.
+         */
+        const lifetimeMs = target.getTime() - new Date(goal.createdAt).getTime();
+        const elapsedMs = today.getTime() - new Date(goal.createdAt).getTime();
+
+        // A goal created today has no elapsed time to judge against, and one
+        // whose target predates its creation has no meaningful lifetime.
+        // Both are treated as fully on pace rather than penalised.
+        const expectedProgress =
+          lifetimeMs > 0 ? Math.min(100, Math.max(0, (elapsedMs / lifetimeMs) * 100)) : 0;
+
+        if (progressPercentage >= expectedProgress) {
           completionProbability = 'High';
-        } else if (progressPercentage >= (100 - (monthsRemaining * 15))) {
+        } else if (progressPercentage >= expectedProgress * 0.6) {
           completionProbability = 'Medium';
         } else {
           completionProbability = 'Low';
@@ -206,16 +227,20 @@ export class GoalService {
       throw new NotFoundError('Goal not found');
     }
 
+    // The validator already rejects non-positive amounts; this is the
+    // service-level guarantee for any caller that bypasses the route.
     if (amount <= 0) {
       throw new BadRequestError('Contribution amount must be positive');
     }
 
-    const newAmount = Number(goal.currentAmount) + amount;
-    if (newAmount < 0) {
-      throw new BadRequestError('Target balance cannot fall below zero');
-    }
-
-    const updatedGoal = await goalRepository.updateBalance(id, newAmount);
+    /**
+     * Atomic increment — never read-modify-write.
+     *
+     * Reading the balance here and writing back `read + amount` loses one of
+     * two contributions that overlap: both read the same value, and the second
+     * write overwrites the first. See `incrementBalance` for the mechanics.
+     */
+    const updatedGoal = await goalRepository.incrementBalance(id, new Prisma.Decimal(amount));
     return this.formatGoalStats(updatedGoal);
   }
 }

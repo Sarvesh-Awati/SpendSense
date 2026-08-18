@@ -2,7 +2,7 @@ import prisma from '../database/prisma';
 import budgetRepository from '../repositories/BudgetRepository';
 import categoryRepository from '../repositories/CategoryRepository';
 import userRepository from '../repositories/UserRepository';
-import { NotFoundError } from '../errors/AppError';
+import { NotFoundError, BadRequestError } from '../errors/AppError';
 import { assertAllTransactionsConverted } from '../utils/reportingGuard';
 import { Budget, CategoryType, Prisma, Currency } from '@prisma/client';
 
@@ -34,6 +34,19 @@ export interface BudgetWithStats {
 
 export class BudgetService {
   /**
+   * Runs the unconverted-transaction guard exactly once per request.
+   *
+   * It used to run inside `calculateSpending`, i.e. once per budget — so a
+   * user with twelve budgets paid for twelve identical COUNT queries on top of
+   * the twelve aggregates they actually needed. The guard is a property of the
+   * user's transaction set, not of any one budget, so it belongs at the entry
+   * point.
+   */
+  private async guardReporting(userId: string): Promise<void> {
+    await assertAllTransactionsConverted({ userId });
+  }
+
+  /**
    * Helper to calculate aggregate spending for a budget.
    */
   private async calculateSpending(
@@ -42,10 +55,6 @@ export class BudgetService {
     startDate: Date,
     endDate: Date
   ): Promise<number> {
-    // Budget amounts are denominated in the account base currency, so spend
-    // must be compared in the same unit.
-    await assertAllTransactionsConverted({ userId });
-
     const aggregate = await prisma.transaction.aggregate({
       _sum: { convertedAmount: true },
       where: {
@@ -61,6 +70,11 @@ export class BudgetService {
 
   /**
    * Helper to format raw Budget items to Budgets with Stats payload.
+   *
+   * Callers must have run `assertAllTransactionsConverted` for this user
+   * first — see `guardReporting` below. Budget amounts are denominated in the
+   * account base currency, so spend must be compared in the same unit, and an
+   * unpriced row would silently understate it.
    */
   private async formatBudgetStats(
     userId: string, 
@@ -107,9 +121,20 @@ export class BudgetService {
       suggestedBudgetLimit = projectedSpend * 1.05; // 5% buffer on projection
     }
 
+    /**
+     * One definition of "exceeded", used by every field below.
+     *
+     * `status` tested `spent >= amount` while `isExceeded` tested
+     * `percentageUsed > 100`, so a budget spent to exactly its limit came back
+     * as `status: 'Exceeded'` and `isExceeded: false` in the same object — and
+     * the UI drew whichever it happened to read. Spending your entire budget
+     * is reaching the limit, so the inclusive comparison is the correct one.
+     */
+    const isExceeded = amount > 0 && spent >= amount;
+
     // Status
     let status: 'Safe' | 'At Risk' | 'Exceeded' = 'Safe';
-    if (spent >= amount) {
+    if (isExceeded) {
       status = 'Exceeded';
     } else if (projectedSpend > amount || percentageUsed >= 80) {
       status = 'At Risk';
@@ -133,8 +158,11 @@ export class BudgetService {
       spent: Number(spent.toFixed(2)),
       remaining: Number(remaining.toFixed(2)),
       percentageUsed: Number(percentageUsed.toFixed(1)),
+      // `isWarning` stays inclusive of the exceeded case — an over-budget
+      // budget is also worth warning about, and the UI treats the two flags
+      // as independent signals rather than mutually exclusive states.
       isWarning: percentageUsed >= 80,
-      isExceeded: percentageUsed > 100,
+      isExceeded,
       predictions: {
         projectedSpend: Number(projectedSpend.toFixed(2)),
         recommendedDailyLimit: Number(recommendedDailyLimit.toFixed(2)),
@@ -191,6 +219,7 @@ export class BudgetService {
       category: categoryInfo,
     };
 
+    await this.guardReporting(userId);
     return this.formatBudgetStats(userId, budgetWithCategory);
   }
 
@@ -199,8 +228,9 @@ export class BudgetService {
    */
   async findAll(userId: string): Promise<BudgetWithStats[]> {
     const budgets = await budgetRepository.findByUserId(userId);
-    
-    // Resolve stats for all budgets concurrently
+
+    // One guard for the whole request, then stats for all budgets concurrently.
+    await this.guardReporting(userId);
     return Promise.all(budgets.map((b) => this.formatBudgetStats(userId, b)));
   }
 
@@ -223,6 +253,7 @@ export class BudgetService {
       category: categoryInfo,
     };
 
+    await this.guardReporting(userId);
     return this.formatBudgetStats(userId, budgetWithCategory);
   }
 
@@ -252,6 +283,19 @@ export class BudgetService {
       }
     }
 
+    /**
+     * The validator only compares startDate against endDate when BOTH are in
+     * the request. A partial update supplying just one of them was checked
+     * against nothing, so a budget could be moved into an inverted range
+     * (start after end) — which makes `totalDays` negative and every
+     * projection below it meaningless. Compare against the stored values.
+     */
+    const effectiveStart = data.startDate ?? budget.startDate;
+    const effectiveEnd = data.endDate ?? budget.endDate;
+    if (effectiveEnd < effectiveStart) {
+      throw new BadRequestError('End date must be greater than or equal to start date');
+    }
+
     // Currency is not user-editable in this phase.
     const { currency: _ignoredCurrency, ...safeData } = data;
 
@@ -269,6 +313,7 @@ export class BudgetService {
       category: categoryInfo,
     };
 
+    await this.guardReporting(userId);
     return this.formatBudgetStats(userId, budgetWithCategory);
   }
 

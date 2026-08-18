@@ -118,9 +118,12 @@ async function runTests() {
   await runTest('Contribution and Increment Math', async () => {
     stubCurrencyDeps();
     goalRepository.findById = async () => mockGoal as any;
-    goalRepository.updateBalance = async (id: string, amount: number) => ({
+    // `incrementBalance` receives the DELTA, not the new total — Postgres does
+    // the addition. The stub mirrors that so the assertions still describe the
+    // real behaviour rather than the old read-modify-write signature.
+    goalRepository.incrementBalance = async (id: string, delta: Decimal) => ({
       ...mockGoal,
-      currentAmount: new Decimal(amount),
+      currentAmount: new Decimal(mockGoal.currentAmount).plus(delta),
     } as any);
 
     const result = await goalService.contributeToGoal('user-1', 'goal-uuid', 10000);

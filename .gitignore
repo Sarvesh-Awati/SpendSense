@@ -19,6 +19,12 @@ out/
 .env.production.local
 .env.*
 
+# ...but the templates MUST be committed. `.env.*` above matched
+# `.env.example`, so the files documenting required configuration were
+# silently absent from the repository and a fresh clone had nothing to copy.
+!.env.example
+!**/.env.example
+
 # Logs
 npm-debug.log*
 yarn-debug.log*

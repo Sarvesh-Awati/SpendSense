@@ -2,7 +2,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import env from './config/env';
+import env, { allowedOrigins } from './config/env';
+import prisma from './database/prisma';
 import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import transactionRoutes from './routes/transactionRoutes';
@@ -21,11 +22,52 @@ const { version } = require('../package.json');
 
 const app = express();
 
+/**
+ * The API runs behind a reverse proxy in production (Render/Vercel/Nginx).
+ * Without this, `req.ip` is the proxy's address for every request, so the
+ * auth rate limiter puts the entire internet in one bucket — a single noisy
+ * client would lock everyone out, and a brute-force attempt would be
+ * indistinguishable from ordinary traffic.
+ *
+ * `1` trusts exactly one hop. Trusting every hop (`true`) would let a client
+ * forge `X-Forwarded-For` and evade the limiter entirely.
+ */
+if (env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Standard Security & Utility Middlewares
 app.use(helmet());
-app.use(cors());
-app.use(express.json());
-app.use(morgan('dev'));
+
+/**
+ * CORS is an explicit allowlist — never a wildcard.
+ *
+ * Requests with no Origin header (server-to-server, curl, health probes, and
+ * the integration suite's same-process fetch) are allowed through: CORS is a
+ * browser control and has nothing to enforce when there is no origin.
+ */
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error('Origin not allowed by CORS policy'));
+    },
+    credentials: true,
+  })
+);
+
+/**
+ * Body size ceiling. Profile pictures arrive as base64 data URLs, so the limit
+ * cannot be tiny — but it must exist, or a single request can pin the process
+ * parsing JSON. Oversize bodies surface as 413 via the error handler.
+ */
+app.use(express.json({ limit: '2mb' }));
+
+// Request logging: concise in production, verbose in development.
+app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // Mount Core Router Modules
 app.use('/api/auth', authRoutes);
@@ -50,13 +92,30 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
-// Basic Health Check Route
-app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    message: 'SpendSense API is running smoothly'
-  });
+/**
+ * Health check for load balancers and deployment gates.
+ *
+ * A process that is listening but cannot reach its database is not healthy —
+ * reporting `ok` there would let a broken release pass a rollout check. The
+ * probe therefore round-trips to Postgres and answers 503 when that fails.
+ * The failure reason is logged, never returned: it can carry connection detail.
+ */
+app.get('/health', async (req: Request, res: Response) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({
+      status: 'ok',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('🔥 Health check failed — database unreachable:', error);
+    res.status(503).json({
+      status: 'error',
+      database: 'unreachable',
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 // Global 404 Route handler

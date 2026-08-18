@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { User } from '@prisma/client';
 import userRepository from '../repositories/UserRepository';
 import refreshTokenRepository from '../repositories/RefreshTokenRepository';
@@ -110,25 +111,51 @@ export class AuthService {
       throw new UnauthorizedError('Invalid or expired refresh token');
     }
 
-    // 2. Enforce expiration checks
+    // 2. REUSE DETECTION.
+    //
+    //    This token was already consumed by a rotation, yet somebody is
+    //    presenting it again. Exactly one legitimate holder can exist per
+    //    token, so either a thief is replaying a token the real user has
+    //    already rotated past, or the real user is replaying one the thief
+    //    rotated. The two are indistinguishable from here, and in both cases
+    //    the family is compromised — so every descendant of that original
+    //    login is revoked and everyone re-authenticates.
+    if (storedToken.revokedAt) {
+      await refreshTokenRepository.revokeFamily(storedToken.familyId);
+      console.error(
+        `[auth] Refresh token reuse detected for user ${storedToken.userId}; ` +
+          `family ${storedToken.familyId} revoked (token value withheld)`
+      );
+      throw new UnauthorizedError('Invalid or expired refresh token');
+    }
+
+    // 3. Enforce expiration checks
     if (storedToken.expiresAt < new Date()) {
-      await refreshTokenRepository.delete(storedToken.id);
+      await refreshTokenRepository.markRevoked(storedToken.id);
       throw new UnauthorizedError('Refresh token has expired');
     }
 
-    // 3. Retrieve associated user
+    // 4. Retrieve associated user
     const user = await userRepository.findById(storedToken.userId);
     if (!user) {
       throw new UnauthorizedError('User session not found');
     }
 
-    // 4. Rotation: delete the old token first
-    await refreshTokenRepository.delete(storedToken.id);
+    // 5. Rotation: consume the presented token, then mint its successor into
+    //    the same family. Marking (not deleting) is what leaves the evidence
+    //    a later replay is recognised by.
+    const rotated = await refreshTokenRepository.markRevoked(storedToken.id);
 
-    // 5. Generate and save a brand new token set
-    const newTokens = await this.generateUserSession(user);
+    // Two requests raced for the same token and the other one won. Treat the
+    // loser as a replay rather than issuing a second live successor from one
+    // parent — that would fork the family and defeat the detection above.
+    if (rotated.count === 0) {
+      await refreshTokenRepository.revokeFamily(storedToken.familyId);
+      throw new UnauthorizedError('Invalid or expired refresh token');
+    }
 
-    return newTokens;
+    // 6. Generate and save a brand new token set within the same family
+    return this.generateUserSession(user, storedToken.familyId);
   }
 
   /**
@@ -137,7 +164,7 @@ export class AuthService {
    */
   async logout(tokenString: string): Promise<void> {
     try {
-      await refreshTokenRepository.deleteByTokenHash(hashToken(tokenString));
+      await refreshTokenRepository.revokeByTokenHash(hashToken(tokenString));
     } catch (error) {
       // Fail silently if token doesn't exist, as the session is already terminated
       console.error('Logout revocation failed for a refresh token (token value withheld)');
@@ -150,6 +177,29 @@ export class AuthService {
    */
   async revokeAllSessions(userId: string): Promise<void> {
     await refreshTokenRepository.deleteManyByUserId(userId);
+
+    /**
+     * Pending password-reset links die with the sessions.
+     *
+     * A reset token issued before a password change stayed live for its full
+     * hour afterwards, so someone who had triggered "forgot password" — the
+     * exact scenario a worried user changes their password to shut down —
+     * could still use their emailed link to set a new one and take the account
+     * back. Changing a password must invalidate every other route to it.
+     */
+    await passwordResetTokenRepository.deleteManyByUserId(userId);
+  }
+
+  /**
+   * Removes refresh tokens that are expired or long since revoked.
+   *
+   * Rotation now marks rows rather than deleting them (so replays stay
+   * detectable), which means the table grows with every refresh. Called on a
+   * timer from server.ts.
+   */
+  async purgeStaleTokens(): Promise<number> {
+    const { count } = await refreshTokenRepository.purgeStale();
+    return count;
   }
 
   /**
@@ -292,7 +342,11 @@ export class AuthService {
     };
   }
 
-  private async generateUserSession(user: User): Promise<AuthTokens> {
+  /**
+   * @param familyId when rotating, the family the previous token belonged to.
+   *   Omitted for a fresh login, which starts a new family.
+   */
+  private async generateUserSession(user: User, familyId?: string): Promise<AuthTokens> {
     const payload: TokenPayload = { userId: user.id, email: user.email };
 
     const accessToken = generateAccessToken(payload);
@@ -312,6 +366,7 @@ export class AuthService {
       tokenHash: hashToken(refreshTokenString),
       expiresAt,
       userId: user.id,
+      familyId: familyId ?? crypto.randomUUID(),
     });
 
     return {

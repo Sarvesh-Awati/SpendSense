@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useUploadReceipt, ReceiptExtractionResult } from '../../services/receipts';
 import { useCreateTransaction, useCategories } from '../../services/transactions';
 import { useToast } from '../../components/ui/Toast';
@@ -16,7 +16,6 @@ import {
   FileImage,
   CheckCircle,
   Check,
-  Zap,
 } from 'lucide-react';
 
 /**
@@ -72,8 +71,27 @@ export const ReceiptScanner: React.FC = () => {
    * from the extraction and editable before accepting.
    */
   const [receiptDate, setReceiptDate] = useState<string>('');
+  /**
+   * Id of the receipt row created by the upload.
+   *
+   * This was previously dropped on the floor, so every scanned receipt and the
+   * transaction it produced stayed unrelated records — the original image could
+   * never be pulled up from the transaction, which is the entire point of
+   * keeping it.
+   */
+  const [receiptId, setReceiptId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Object URLs hold their Blob alive until explicitly revoked. Scanning a
+   * dozen receipts in one session leaked every image; revoking on replacement
+   * and on unmount releases them.
+   */
+  useEffect(() => {
+    if (!previewUrl) return;
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   // Find the best matching categoryId from the AI's suggested category name
   const findCategoryId = useCallback(
@@ -138,11 +156,35 @@ export const ReceiptScanner: React.FC = () => {
     try {
       const result = await uploadMutation.mutateAsync(selectedFile);
       const extracted = result.data.extraction;
+
+      /**
+       * A failed extraction is not a successful scan.
+       *
+       * The upload itself returns 201 whether or not the model answered, so
+       * reporting success here told the user their receipt had been read when
+       * the AI service was actually unreachable. The image is stored either
+       * way, so the form is still offered — but honestly labelled.
+       */
+      if (extracted.extractionStatus === 'FAILED') {
+        setExtraction(extracted);
+        setReceiptId(result.data.receipt.id);
+        setReceiptDate(today());
+        setStep('confirm');
+        toast('Could not read this receipt automatically. Enter the details manually.', 'error');
+        return;
+      }
+
       setExtraction(extracted);
+      setReceiptId(result.data.receipt.id);
       // Default to the OCR date; the confirm row lets it be corrected.
       setReceiptDate(toDateInputValue(extracted.date));
       setStep('confirm');
-      toast('Receipt scanned successfully!', 'success');
+      toast(
+        extracted.extractionStatus === 'EMPTY'
+          ? 'Receipt uploaded, but no details were found. Fill them in below.'
+          : 'Receipt scanned successfully!',
+        extracted.extractionStatus === 'EMPTY' ? 'info' : 'success'
+      );
     } catch (error: any) {
       const msg =
         error.response?.data?.message || 'Failed to scan receipt. Please try again.';
@@ -154,7 +196,9 @@ export const ReceiptScanner: React.FC = () => {
 
   const handleTransactionSave = async (values: any) => {
     try {
-      await createTransaction.mutateAsync(values);
+      // Carry the receipt through, so the stored image stays reachable from
+      // the transaction it produced.
+      await createTransaction.mutateAsync({ ...values, receiptId });
       toast('Transaction created from receipt!', 'success');
       handleReset();
     } catch (error: any) {
@@ -167,6 +211,7 @@ export const ReceiptScanner: React.FC = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
     setExtraction(null);
+    setReceiptId(null);
     setReceiptDate('');
     setErrorMessage('');
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -330,12 +375,22 @@ export const ReceiptScanner: React.FC = () => {
 
               <div className="min-w-0">
                 <p className="text-sm font-semibold truncate">
-                  {extraction.merchant || 'Receipt scanned'}
+                  {extraction.merchant ||
+                    (extraction.extractionStatus === 'FAILED'
+                      ? 'Could not read receipt'
+                      : 'Receipt scanned')}
                 </p>
                 <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-0.5 truncate">
-                  Extracted date: {extraction.date ? displayDate(toDateInputValue(extraction.date)) : 'not found'}
-                  {extraction.confidence !== null && (
-                    <span> · {(extraction.confidence * 100).toFixed(0)}% confidence</span>
+                  {extraction.extractionStatus === 'FAILED' ? (
+                    'The scanner was unavailable — the image was saved, enter the details yourself.'
+                  ) : (
+                    <>
+                      Extracted date:{' '}
+                      {extraction.date ? displayDate(toDateInputValue(extraction.date)) : 'not found'}
+                      {extraction.confidence !== null && (
+                        <span> · {(extraction.confidence * 100).toFixed(0)}% confidence</span>
+                      )}
+                    </>
                   )}
                 </p>
               </div>
@@ -377,16 +432,50 @@ export const ReceiptScanner: React.FC = () => {
       {/* Step: Review — show the TransactionForm prefilled with extraction data */}
       {step === 'review' && extraction && (
         <div className="space-y-5">
-          {/* Extraction Confidence Banner */}
-          <div className="flex items-center gap-3 p-4 rounded-2xl bg-brand-primary/10 border border-brand-primary/15 text-sm">
-            <CheckCircle className="w-5 h-5 text-brand-primary flex-shrink-0" />
+          {/*
+            Banner reflects what actually happened. Announcing "Scanned
+            Successfully" over an all-null result — because the model was down —
+            was actively misleading.
+          */}
+          {/*
+            Class names are written out in full rather than interpolated:
+            Tailwind's JIT scans source text for complete class strings, so a
+            template like `bg-${accent}/10` compiles to no styles at all.
+          */}
+          <div
+            className={
+              extraction.extractionStatus === 'FAILED'
+                ? 'flex items-center gap-3 p-4 rounded-2xl text-sm bg-finance-expense/10 border border-finance-expense/20'
+                : 'flex items-center gap-3 p-4 rounded-2xl text-sm bg-brand-primary/10 border border-brand-primary/15'
+            }
+            role={extraction.extractionStatus === 'FAILED' ? 'alert' : undefined}
+          >
+            {extraction.extractionStatus === 'FAILED' ? (
+              <AlertTriangle className="w-5 h-5 text-finance-expense flex-shrink-0" />
+            ) : (
+              <CheckCircle className="w-5 h-5 text-brand-primary flex-shrink-0" />
+            )}
             <div className="flex-grow">
-              <p className="font-semibold text-brand-primary">
-                Receipt Scanned Successfully
+              <p
+                className={
+                  extraction.extractionStatus === 'FAILED'
+                    ? 'font-semibold text-finance-expense'
+                    : 'font-semibold text-brand-primary'
+                }
+              >
+                {extraction.extractionStatus === 'FAILED'
+                  ? 'Automatic Scanning Unavailable'
+                  : extraction.extractionStatus === 'EMPTY'
+                  ? 'No Details Found'
+                  : 'Receipt Scanned Successfully'}
               </p>
               <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-0.5">
-                Review the extracted details below and make any corrections before saving.
-                {extraction.confidence !== null && (
+                {extraction.extractionStatus === 'FAILED'
+                  ? 'Your receipt image was saved. Enter the details below and save as normal.'
+                  : extraction.extractionStatus === 'EMPTY'
+                  ? 'The image was readable but nothing could be extracted. Fill in the details below.'
+                  : 'Review the extracted details below and make any corrections before saving.'}
+                {extraction.extractionStatus !== 'FAILED' && extraction.confidence !== null && (
                   <span className="ml-1 font-semibold">
                     AI Confidence: {(extraction.confidence * 100).toFixed(0)}%
                   </span>

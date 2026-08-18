@@ -6,7 +6,6 @@ import { useCategories } from '../../services/transactions';
 import { useAuth } from '../../context/AuthContext';
 import {
   FALLBACK_CURRENCY,
-  SUPPORTED_CURRENCIES,
   currencySymbol,
 } from '../../utils/formatCurrency';
 import { Field, Input, Select, controlClasses } from '../../components/ui/Field';
@@ -47,6 +46,8 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
   const categories = categoriesResponse?.data?.categories || [];
   const { user } = useAuth();
   const preferredCurrency = user?.preferredCurrency || FALLBACK_CURRENCY;
+  /** The account's reporting currency. Not user-selectable here — see below. */
+  const accountCurrency = preferredCurrency;
 
   const formatInputDate = (dateString?: string) => {
     if (!dateString) return new Date().toISOString().split('T')[0];
@@ -59,7 +60,6 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors },
   } = useForm<BudgetFormValues>({
     resolver: zodResolver(budgetFormSchema),
@@ -108,10 +108,10 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
               <span
                 aria-hidden="true"
                 className={`absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-text-secondaryLight/60 dark:text-text-secondaryDark/50 ${
-                  currencySymbol(watch('currency')).length > 1 ? 'text-[11px]' : 'text-sm'
+                  currencySymbol(accountCurrency).length > 1 ? 'text-[11px]' : 'text-sm'
                 }`}
               >
-                {currencySymbol(watch('currency'))}
+                {currencySymbol(accountCurrency)}
               </span>
               <input
                 {...ids}
@@ -125,15 +125,26 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
           )}
         </Field>
 
-        <Field label="Currency" error={errors.currency?.message} disabled={isPending}>
+        {/*
+          Read-only, deliberately.
+
+          This was a full currency picker, but the API ignores whatever it
+          sends: Budgets are always denominated in the account's reporting
+          currency so that limits and converted spend share one unit and no FX
+          happens in the maths. Offering a choice that is silently discarded
+          told the user they had set EUR when the record was stored in {accountCurrency}.
+        */}
+        <Field label="Currency">
           {(ids) => (
-            <Select {...ids} hasError={!!errors.currency} {...register('currency')}>
-              {SUPPORTED_CURRENCIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.label}
-                </option>
-              ))}
-            </Select>
+            <div
+              {...ids}
+              className={`${controlClasses(false, false)} flex items-center justify-between cursor-not-allowed opacity-80`}
+            >
+              <span>{accountCurrency}</span>
+              <span className="text-xs text-text-secondaryLight dark:text-text-secondaryDark">
+                Account currency
+              </span>
+            </div>
           )}
         </Field>
       </div>

@@ -52,7 +52,7 @@ export const Register: React.FC = () => {
   });
 
   const registerMutation = useRegisterMutation({
-    onSuccess: (response) => {
+    onSuccess: () => {
       toast('Registration successful! Please sign in with your credentials.', 'success');
       navigate('/login');
     },

@@ -34,7 +34,7 @@ export const RecentFeed: React.FC<RecentFeedProps> = ({ transactions, onAddTrans
           transactions.length > 0 ? (
             <Link
               to="/transactions"
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-primary hover:gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 rounded transition-all"
+              className="inline-flex items-center gap-1 py-1.5 -my-1.5 min-h-[26px] text-[11px] font-semibold text-brand-primary hover:gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 rounded transition-all"
             >
               View all
               <ArrowRight className="w-3 h-3" aria-hidden="true" />

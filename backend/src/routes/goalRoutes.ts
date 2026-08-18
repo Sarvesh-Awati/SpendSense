@@ -14,6 +14,7 @@ import {
   updateGoalSchema,
   contributeGoalSchema,
 } from '../validators/goal';
+import { idParamSchema } from '../validators/common';
 
 const router = Router();
 
@@ -22,9 +23,9 @@ router.use(authenticateUser);
 
 router.post('/', validate(createGoalSchema), create);
 router.get('/', findAll);
-router.get('/:id', findById);
-router.put('/:id', validate(updateGoalSchema), update);
-router.delete('/:id', remove);
-router.post('/:id/contribute', validate(contributeGoalSchema), contribute);
+router.get('/:id', validate(idParamSchema), findById);
+router.put('/:id', validate(idParamSchema), validate(updateGoalSchema), update);
+router.delete('/:id', validate(idParamSchema), remove);
+router.post('/:id/contribute', validate(idParamSchema), validate(contributeGoalSchema), contribute);
 
 export default router;

@@ -2,7 +2,7 @@ import authService from '../services/authService';
 import userRepository from '../repositories/UserRepository';
 import refreshTokenRepository from '../repositories/RefreshTokenRepository';
 import { hashPassword } from '../utils/password';
-import { ConflictError, UnauthorizedError, NotFoundError } from '../errors/AppError';
+import { ConflictError, UnauthorizedError } from '../errors/AppError';
 
 // Quick assertion helper
 function assert(condition: boolean, message: string) {

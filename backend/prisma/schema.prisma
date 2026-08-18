@@ -94,6 +94,17 @@ model RefreshToken {
   tokenHash String   @unique
   expiresAt DateTime
   userId    String   @db.Uuid
+  // Every token minted by one login shares a family id, and rotation carries
+  // it forward. This is what makes theft detectable: see `revokedAt`.
+  familyId  String   @db.Uuid
+  // Set when the token is consumed by rotation, or when its family is revoked.
+  // A revoked token that is presented again is a REPLAY — either the attacker
+  // is using a stolen token the real user has already rotated past, or the
+  // real user is using one the attacker rotated. Neither case is
+  // distinguishable, so the whole family is destroyed and both parties must
+  // authenticate again. Rows are kept (not deleted) precisely so the replay
+  // can be recognised rather than looking like an unknown token.
+  revokedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -101,6 +112,8 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
   @@map("refresh_tokens")
 }
 

@@ -100,9 +100,18 @@ We utilize a colocated **feature-based** and **layer-based** directory structure
 | `PORT` | Local server port | `5001` | No (Managed by Cloud) |
 | `NODE_ENV` | Environment identifier | `development` | Yes (`production`) |
 | `DATABASE_URL` | Prisma DB connection connection string | (Neon Postgres URI) | Yes |
-| `JWT_SECRET` | Secret key used to sign Access Tokens | (Secure String) | Yes |
-| `JWT_REFRESH_SECRET`| Secret key used to sign Refresh Tokens | (Secure String) | Yes |
-| `GEMINI_API_KEY` | Key for natural language parsing/insights | (Google AI API Key) | Yes |
+| `JWT_SECRET` | Signs access tokens. **>= 32 chars in production**, and must differ from the refresh secret — the server refuses to boot otherwise | (Secure String) | Yes |
+| `GEMINI_API_KEY` | Receipt extraction and analytics commentary. There is no natural-language transaction entry | (Google AI API Key) | Yes |
+| `APP_URL` | Public frontend URL, used to build password-reset links. Rejected in production if it points at localhost | `http://localhost:3000` | Yes |
+| `CORS_ORIGINS` | Comma-separated allowlist of browser origins. **No wildcard**; production will not boot without it | (dev: Vite dev server) | Yes |
+| `EXCHANGE_RATE_API_KEY` | Without it, foreign-currency transactions are rejected with 503 rather than stored at a guessed rate | (unset) | No |
+| `EXCHANGE_RATE_BASE_URL` | Exchange-rate provider base URL | `https://api.exchangerate.host` | No |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `EMAIL_FROM` | Password-reset email. Unset, the reset endpoint still returns its generic success response — no enumeration leak, the mail simply is not sent | (unset) | No |
+
+### Frontend
+| Variable | Description | Default / Example | Required in Prod |
+| :--- | :--- | :--- | :--- |
+| `VITE_API_URL` | API origin **without** a trailing `/api`. Unset locally, where `/api` is proxied by Vite. Inlined into the bundle at build time — never put a secret in a `VITE_` variable | (unset) | Yes |
 
 ---
 
@@ -830,7 +839,7 @@ All subscription endpoints require a valid JWT Bearer access token in the `Autho
 1. **Client Request**: Client issues credentials to `/api/auth/login`.
 2. **Server Check**: Server verifies user email, compares password using Bcrypt, and generates:
    - **Access Token**: Short-lived (15 minutes), stateless JWT containing `{ userId, email }`. Signed with `JWT_SECRET`.
-   - **Refresh Token**: Long-lived (30 days) random UUID/JWT string. Signed with `JWT_REFRESH_SECRET` and saved to the database.
+   - **Refresh Token**: Long-lived (30 days) opaque random value (256 bits of entropy). NOT signed — nothing verifies it cryptographically; only its SHA-256 hash is saved to the database, so a database disclosure yields no usable credential. Every login opens a token *family*; rotation carries the family forward and marks the consumed token revoked, so presenting an already-rotated token is detected as a replay and revokes the whole family.
 3. **Client Storage**: Client saves both tokens in LocalStorage.
 4. **API Requests**: On every subsequent API request, the Axios request interceptor automatically attaches the access token: `Authorization: Bearer <accessToken>`.
 5. **Gateway Auth**: Backend middleware `authenticateUser()` verifies the signature. If valid, request proceeds; if expired, server returns `401 Unauthorized`.

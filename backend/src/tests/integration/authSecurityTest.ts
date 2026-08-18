@@ -241,10 +241,19 @@ async function runTests() {
     });
     assert(out.status === 200, `logout expected 200, got ${out.status}`);
 
+    /**
+     * The row is RETAINED and marked revoked, not deleted.
+     *
+     * Deleting it would make a later replay of the same token indistinguishable
+     * from an unknown token, and rotation-replay detection depends on being
+     * able to tell those apart. What matters for logout is that the token can
+     * no longer be exchanged — asserted below — not that the row is gone.
+     */
     const row = await prisma.refreshToken.findUnique({
       where: { tokenHash: hashToken(user.refreshToken) },
     });
-    assert(row === null, 'refresh token row must be deleted from the database');
+    assert(row !== null, 'refresh token row should be retained for replay detection');
+    assert(row!.revokedAt !== null, 'refresh token must be marked revoked on logout');
 
     const reuse = await request('POST', '/api/auth/refresh', {
       body: { refreshToken: user.refreshToken },

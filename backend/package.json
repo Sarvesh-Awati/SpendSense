@@ -9,7 +9,10 @@
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "test": "ts-node src/tests/authTest.ts && ts-node src/tests/transactionTest.ts && ts-node src/tests/dashboardTest.ts && ts-node src/tests/budgetTest.ts && ts-node src/tests/goalTest.ts && ts-node src/tests/receiptTest.ts && ts-node src/tests/subscriptionTest.ts && NODE_ENV=test ts-node src/tests/passwordResetTest.ts && NODE_ENV=test ts-node --files src/tests/integration/authSecurityTest.ts && NODE_ENV=test ts-node --files src/tests/integration/multiCurrencyTest.ts"
+    "test": "ts-node src/tests/authTest.ts && ts-node src/tests/transactionTest.ts && ts-node src/tests/dashboardTest.ts && ts-node src/tests/budgetTest.ts && ts-node src/tests/goalTest.ts && ts-node src/tests/receiptTest.ts && ts-node src/tests/subscriptionTest.ts && NODE_ENV=test ts-node src/tests/passwordResetTest.ts && NODE_ENV=test ts-node --files src/tests/integration/authSecurityTest.ts && NODE_ENV=test ts-node --files src/tests/integration/multiCurrencyTest.ts && NODE_ENV=test ts-node --files src/tests/integration/hardeningTest.ts",
+    "typecheck": "tsc --noEmit",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "prisma db seed"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

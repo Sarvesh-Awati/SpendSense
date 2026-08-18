@@ -1,8 +1,13 @@
 import prisma from '../database/prisma';
-import { CategoryType, Transaction } from '@prisma/client';
+import { CategoryType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import aiService from './aiService';
 import { assertAllTransactionsConverted } from '../utils/reportingGuard';
+import {
+  serializeTransaction,
+  serializeTransactions,
+  SerializedTransaction,
+} from '../utils/serializeTransaction';
 
 const safeDecimal = (val: Decimal | number | null | undefined): number => {
   if (val === null || val === undefined) return 0;
@@ -17,7 +22,7 @@ export interface AnalyticsData {
     netWorthTrend: { date: string; balance: number }[];
     savingsTrend: { month: string; amount: number }[];
     topMerchants: { merchant: string; amount: number }[];
-    largestExpenses: Transaction[];
+    largestExpenses: SerializedTransaction[];
   };
   averages: {
     dailySpending: number;
@@ -29,7 +34,7 @@ export interface AnalyticsData {
     top5Categories: { name: string; amount: number }[];
     top10Merchants: { merchant: string; amount: number }[];
     fastestGrowingCategory: { name: string; growthPercent: number } | null;
-    largestTransaction: Transaction | null;
+    largestTransaction: SerializedTransaction | null;
     longestSpendingStreak: number;
     biggestSavingsMonth: { month: string; amount: number } | null;
     mostExpensiveWeekday: { day: string; amount: number } | null;
@@ -47,27 +52,50 @@ export interface AnalyticsData {
 }
 
 export class AnalyticsService {
-  async getAnalytics(userId: string): Promise<AnalyticsData> {
+  /**
+   * @param includeInsights when false, the Gemini call is skipped and
+   *   `aiInsights` comes back empty.
+   *
+   *   The whole payload used to block on the model: every page load spent a
+   *   quota unit and waited seconds for text that occupies one panel at the
+   *   bottom of the page, so charts that were ready in ~200ms were held behind
+   *   it. The default stays `true` so existing clients see no change; the UI
+   *   passes `?includeInsights=false` and fetches `GET /analytics/insights`
+   *   separately, which lets the charts paint immediately and the advisor
+   *   panel resolve — or fail, and be retried — on its own.
+   */
+  async getAnalytics(userId: string, includeInsights = true): Promise<AnalyticsData> {
     await assertAllTransactionsConverted({ userId });
 
     const now = new Date();
     
-    // Fetch all user transactions to do comprehensive analysis
-    // For a real production app, we would bound this to a year or 6 months,
-    // but the prompt implies comprehensive historical analysis
+    /**
+     * The whole history is loaded because cash-flow figures are all-time by
+     * contract — see the known-limitations note in the README.
+     *
+     * What it does NOT do any more is join `category` onto every one of those
+     * rows. Nothing in this method read the joined relation: category names
+     * come from `categoryMap` below, built from one small separate query. The
+     * join hydrated a full Category object per transaction across the entire
+     * history purely so that five of them could be echoed back in
+     * `largestExpenses` — which is reattached from the same map, for free,
+     * further down. The response shape is unchanged.
+     */
     const allTransactions = await prisma.transaction.findMany({
       where: { userId },
-      include: { category: true },
       orderBy: { date: 'asc' },
     });
 
-    // We can also fetch categories to have their full names
+    // Categories the user can see: their own plus the system-wide ones.
     const allCategories = await prisma.category.findMany({
       where: { OR: [{ userId: null }, { userId }] }
     });
 
     const categoryMap = new Map<string, string>();
     allCategories.forEach(c => categoryMap.set(c.id, c.name));
+
+    // Full rows, for reattaching to the handful of transactions we echo back.
+    const categoryById = new Map(allCategories.map((c) => [c.id, c]));
 
     // Initialize all basic aggregations
     let totalExpense = 0;
@@ -215,11 +243,17 @@ export class AnalyticsService {
       .map(([merchant, amount]) => ({ merchant, amount }))
       .sort((a, b) => b.amount - a.amount);
 
-    // Largest Expenses
+    // Largest Expenses.
+    //
+    // `category` is reattached here, from the map already in memory, so these
+    // records carry exactly the shape they did when the bulk query eager-loaded
+    // the relation for every transaction in the account. Ten objects instead of
+    // a join across the whole history.
     const largestExpenses = allTransactions
       .filter(tx => tx.type === CategoryType.EXPENSE)
       .sort((a, b) => safeDecimal(b.convertedAmount) - safeDecimal(a.convertedAmount))
-      .slice(0, 10);
+      .slice(0, 10)
+      .map((tx) => ({ ...tx, category: categoryById.get(tx.categoryId) ?? null }));
       
     // Averages
     const transactionAmount = expenseTxCount > 0 ? totalExpense / expenseTxCount : 0;
@@ -301,17 +335,17 @@ export class AnalyticsService {
     // Transform maps to arrays for basic output
     const netWorthTrend = Array.from(netWorthTrendMap.entries()).map(([date, balance]) => ({ date, balance }));
 
-    // Generate AI Insights
-    const summaryPayload = {
-      monthlySavings: Number(monthlySavings.toFixed(2)),
-      topCategories: sortedCategories.slice(0, 3),
-      savingsTrend: savingsTrend.slice(-3),
-      fastestGrowingCategory,
-      dailySpending: Number(dailySpending.toFixed(2)),
-    };
-    
-    // Non-blocking AI call or blocking? Blocking is fine for the analytics endpoint.
-    const aiInsights = await aiService.generateFinancialInsights(summaryPayload);
+    const aiInsights = includeInsights
+      ? await aiService.generateFinancialInsights(
+          this.buildInsightsSummary({
+            monthlySavings,
+            sortedCategories,
+            savingsTrend,
+            fastestGrowingCategory,
+            dailySpending,
+          })
+        )
+      : [];
 
     return {
       basic: {
@@ -321,7 +355,10 @@ export class AnalyticsService {
         netWorthTrend,
         savingsTrend,
         topMerchants: sortedMerchants.slice(0, 5),
-        largestExpenses: largestExpenses.slice(0, 5),
+        // Serialised so `amount` is a number here exactly as it is on
+        // /transactions. Prisma renders Decimal as a JSON string, so these
+        // records used to arrive with `amount: "250.75"` on this one endpoint.
+        largestExpenses: serializeTransactions(largestExpenses.slice(0, 5)),
       },
       averages: {
         dailySpending: Number(dailySpending.toFixed(2)),
@@ -333,7 +370,7 @@ export class AnalyticsService {
         top5Categories: sortedCategories.slice(0, 5),
         top10Merchants: sortedMerchants.slice(0, 10),
         fastestGrowingCategory,
-        largestTransaction: largestExpenses[0] || null,
+        largestTransaction: largestExpenses[0] ? serializeTransaction(largestExpenses[0]) : null,
         longestSpendingStreak,
         biggestSavingsMonth,
         mostExpensiveWeekday,
@@ -349,6 +386,44 @@ export class AnalyticsService {
       },
       aiInsights
     };
+  }
+
+  /** The only shape sent to the model. Aggregates only — never raw records. */
+  private buildInsightsSummary(input: {
+    monthlySavings: number;
+    sortedCategories: { category: string; amount: number; percentage: number }[];
+    savingsTrend: { month: string; amount: number }[];
+    fastestGrowingCategory: { name: string; growthPercent: number } | null;
+    dailySpending: number;
+  }) {
+    return {
+      monthlySavings: Number(input.monthlySavings.toFixed(2)),
+      topCategories: input.sortedCategories.slice(0, 3),
+      savingsTrend: input.savingsTrend.slice(-3),
+      fastestGrowingCategory: input.fastestGrowingCategory,
+      dailySpending: Number(input.dailySpending.toFixed(2)),
+    };
+  }
+
+  /**
+   * AI insights on their own, for the decoupled endpoint.
+   *
+   * Recomputes the aggregates the model needs rather than the full analytics
+   * payload — the summary is five small numbers, so this is far cheaper than
+   * the page-wide computation and keeps the two endpoints independent.
+   */
+  async getInsights(userId: string): Promise<string[]> {
+    const analytics = await this.getAnalytics(userId, false);
+
+    return aiService.generateFinancialInsights(
+      this.buildInsightsSummary({
+        monthlySavings: analytics.averages.monthlySavings,
+        sortedCategories: analytics.basic.categoryComparison,
+        savingsTrend: analytics.basic.savingsTrend,
+        fastestGrowingCategory: analytics.smart.fastestGrowingCategory,
+        dailySpending: analytics.averages.dailySpending,
+      })
+    );
   }
 }
 

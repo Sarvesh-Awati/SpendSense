@@ -1,4 +1,5 @@
 import subscriptionRepository from '../repositories/SubscriptionRepository';
+import categoryRepository from '../repositories/CategoryRepository';
 import { Subscription, SubscriptionFrequency, Currency } from '@prisma/client';
 import { NotFoundError, BadRequestError } from '../errors/AppError';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -50,25 +51,55 @@ export class SubscriptionService {
    * Helper: Calculate the exact next renewal date based on start date, frequency, and an optional reference date (defaults to now).
    */
   public calculateNextRenewal(startDate: Date, frequency: SubscriptionFrequency, referenceDate: Date = new Date()): Date {
-    const nextDate = new Date(startDate);
-    
+    const start = new Date(startDate);
+
     // If the start date is in the future, it IS the next renewal
-    if (nextDate > referenceDate) {
+    if (start > referenceDate) {
+      return start;
+    }
+
+    if (frequency === SubscriptionFrequency.WEEKLY) {
+      const nextDate = new Date(start);
+      while (nextDate <= referenceDate) {
+        nextDate.setDate(nextDate.getDate() + 7);
+      }
       return nextDate;
     }
 
-    // Otherwise, increment based on frequency until it's in the future
-    while (nextDate <= referenceDate) {
-      if (frequency === SubscriptionFrequency.WEEKLY) {
-        nextDate.setDate(nextDate.getDate() + 7);
-      } else if (frequency === SubscriptionFrequency.MONTHLY) {
-        nextDate.setMonth(nextDate.getMonth() + 1);
-      } else if (frequency === SubscriptionFrequency.YEARLY) {
-        nextDate.setFullYear(nextDate.getFullYear() + 1);
-      }
+    /**
+     * Monthly and yearly renewals are anchored to the START date's day of the
+     * month, not to the previous renewal.
+     *
+     * Stepping with `setMonth(+1)` from a 31st overflows: Jan 31 becomes Mar 3,
+     * and every subsequent step compounds from the wrong day, so a plan bought
+     * on the 31st permanently drifts into the middle of the month. The same
+     * flaw moved a Feb 29 yearly renewal to Mar 1 for the next three years.
+     *
+     * Anchoring instead re-derives each candidate from (year, month, anchorDay)
+     * and clamps the day to that month's length, so Jan 31 renews Feb 28/29,
+     * then Mar 31 — the behaviour every subscription provider actually uses.
+     */
+    const anchorDay = start.getDate();
+    const step = frequency === SubscriptionFrequency.YEARLY ? 12 : 1;
+
+    // Absolute month index keeps arithmetic free of year-boundary special cases.
+    let monthIndex = start.getFullYear() * 12 + start.getMonth();
+
+    // Bounded loop: 12,000 steps is a thousand years of monthly renewals, far
+    // beyond any real start date, and guarantees this can never spin forever.
+    for (let i = 0; i < 12_000; i++) {
+      monthIndex += step;
+      const year = Math.floor(monthIndex / 12);
+      const month = monthIndex % 12;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      const candidate = new Date(start);
+      candidate.setFullYear(year, month, Math.min(anchorDay, daysInMonth));
+
+      if (candidate > referenceDate) return candidate;
     }
-    
-    return nextDate;
+
+    return start;
   }
 
   /**
@@ -113,9 +144,19 @@ export class SubscriptionService {
     }
 
     const { monthlyCost, annualCost } = this.calculateEquivalentCosts(sub.amount, sub.frequency);
-    
-    const diffTime = Math.abs(nextRenewal.getTime() - now.getTime());
-    const daysUntilRenewal = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    /**
+     * Signed, deliberately.
+     *
+     * This used to take `Math.abs()` of the difference, so a renewal that had
+     * already passed — which happens on any inactive subscription, since those
+     * are never rolled forward — read as that many days *until* renewal. A
+     * plan cancelled 60 days ago reported "renews in 60 days" and could be
+     * picked up by the dashboard's upcoming-renewals filter.
+     */
+    const daysUntilRenewal = Math.ceil(
+      (nextRenewal.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+    );
 
     // Forward-looking cost: use TODAY's rate, not one frozen at creation.
     // Null (never a raw foreign amount) when a rate cannot be obtained.
@@ -152,9 +193,31 @@ export class SubscriptionService {
   /**
    * Create a new subscription
    */
+  /**
+   * Rejects a category the caller does not own.
+   *
+   * Category ids are UUIDs, so this is not a guessing attack — but ids leak
+   * through shared exports and screenshots, and every other resource in the
+   * application already enforces this. Subscriptions were the one gap: any
+   * user could attach their subscription to another user's private category
+   * and read its name, icon and colour back out of the response.
+   *
+   * System categories (`userId === null`) are shared by design and allowed.
+   */
+  private async assertCategoryAccessible(userId: string, categoryId: string): Promise<void> {
+    const category = await categoryRepository.findById(categoryId);
+    if (!category || (category.userId && category.userId !== userId)) {
+      throw new NotFoundError('Category not found');
+    }
+  }
+
   async createSubscription(userId: string, data: CreateSubscriptionDTO): Promise<SubscriptionStats> {
     const startDate = new Date(data.startDate);
-    
+
+    if (data.categoryId) {
+      await this.assertCategoryAccessible(userId, data.categoryId);
+    }
+
     // Prevent duplicate active subscriptions with the same name for this user
     const existingSubs = await subscriptionRepository.findByUserId(userId);
     const duplicate = existingSubs.find(s => s.name.toLowerCase() === data.name.toLowerCase() && s.isActive);
@@ -176,7 +239,7 @@ export class SubscriptionService {
       userId,
     });
 
-    return this.processSubscription(subscription);
+    return this.processSubscription(subscription, await this.baseCurrencyFor(userId));
   }
 
   /**
@@ -184,8 +247,7 @@ export class SubscriptionService {
    */
   async getSubscriptions(userId: string): Promise<SubscriptionStats[]> {
     const subs = await subscriptionRepository.findByUserId(userId);
-    const user = await userRepository.findById(userId);
-    const baseCurrency = (user?.baseCurrency ?? user?.preferredCurrency) as Currency | undefined;
+    const baseCurrency = await this.baseCurrencyFor(userId);
     return Promise.all(subs.map(sub => this.processSubscription(sub, baseCurrency)));
   }
 
@@ -198,11 +260,14 @@ export class SubscriptionService {
       throw new NotFoundError('Subscription not found');
     }
     
-    // Fetch with category details for the single view
-    const subs = await subscriptionRepository.findByUserId(userId);
-    const subWithCategory = subs.find(s => s.id === id);
-    
-    return this.processSubscription(subWithCategory || subscription);
+    const subWithCategory = await subscriptionRepository.findByIdWithCategory(id);
+    return this.processSubscription(subWithCategory ?? subscription, await this.baseCurrencyFor(userId));
+  }
+
+  /** The account's reporting currency, used to price forward-looking costs. */
+  private async baseCurrencyFor(userId: string): Promise<Currency | undefined> {
+    const user = await userRepository.findById(userId);
+    return (user?.baseCurrency ?? user?.preferredCurrency) as Currency | undefined;
   }
 
   /**
@@ -212,6 +277,10 @@ export class SubscriptionService {
     const existing = await subscriptionRepository.findById(id);
     if (!existing || existing.userId !== userId) {
       throw new NotFoundError('Subscription not found');
+    }
+
+    if (data.categoryId) {
+      await this.assertCategoryAccessible(userId, data.categoryId);
     }
 
     const updateData: Partial<Subscription> = {};
@@ -231,12 +300,11 @@ export class SubscriptionService {
     }
 
     const updated = await subscriptionRepository.update(id, updateData);
-    
+
     // Fetch with category mapping for response consistency
-    const subs = await subscriptionRepository.findByUserId(userId);
-    const subWithCategory = subs.find(s => s.id === id);
-    
-    return this.processSubscription(subWithCategory || updated);
+    const subWithCategory = await subscriptionRepository.findByIdWithCategory(id);
+
+    return this.processSubscription(subWithCategory ?? updated, await this.baseCurrencyFor(userId));
   }
 
   /**

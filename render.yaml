@@ -1,0 +1,83 @@
+# Render blueprint for the SpendSense API.
+#
+# Deploys the backend only. The frontend is a static SPA on Vercel
+# (see vercel.json) and the database is external (Neon), so neither is
+# declared here — this file describes exactly what Render runs.
+#
+# Secrets are marked `sync: false`, which makes Render prompt for them in the
+# dashboard instead of storing them in the repository. Nothing secret belongs
+# in this file.
+
+services:
+  - type: web
+    name: spendsense-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: .
+
+    # Workspaces are installed from the repo root so the backend resolves its
+    # hoisted dependencies. `prisma generate` must run before `tsc`: the
+    # generated client is what the TypeScript build typechecks against, and it
+    # is not committed.
+    buildCommand: npm ci && npm run prisma:generate --workspace backend && npm run build --workspace backend
+
+    # Migrations run at release, not at build. Build runs on every deploy
+    # including previews; release runs once against the live database.
+    preDeployCommand: npx --workspace backend prisma migrate deploy
+
+    startCommand: npm run start --workspace backend
+
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5001
+
+      # ---- Required secrets: set in the Render dashboard ----
+      - key: DATABASE_URL
+        sync: false
+      # Must be >= 32 characters; backend/src/config/env.ts refuses to boot
+      # otherwise. There is no refresh-token secret — refresh tokens are
+      # opaque random values, not signed JWTs.
+      - key: JWT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # ---- Required non-secrets ----
+      # Public URL of the deployed frontend. Used to build password-reset links
+      # and validated at boot (localhost is rejected in production).
+      - key: APP_URL
+        sync: false
+      # Comma-separated browser origins allowed to call this API. There is no
+      # wildcard fallback; the process will not start without this.
+      - key: CORS_ORIGINS
+        sync: false
+
+      # ---- Optional ----
+      # Without a key, foreign-currency transactions fail closed with 503
+      # rather than being stored at a guessed rate. Same-currency entry is
+      # unaffected.
+      - key: EXCHANGE_RATE_API_KEY
+        sync: false
+      - key: EXCHANGE_RATE_BASE_URL
+        value: https://api.exchangerate.host
+
+      # Transactional email. Without these, password reset silently no-ops
+      # server-side — the endpoint still returns its generic success response,
+      # so account enumeration stays closed.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: EMAIL_FROM
+        sync: false

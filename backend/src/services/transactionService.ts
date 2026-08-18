@@ -1,9 +1,10 @@
 import { Currency, CategoryType, Prisma } from '@prisma/client';
 import transactionRepository, { TransactionFilters } from '../repositories/TransactionRepository';
 import categoryRepository from '../repositories/CategoryRepository';
+import receiptRepository from '../repositories/ReceiptRepository';
 import userRepository from '../repositories/UserRepository';
 import currencyService from './currencyService';
-import { NotFoundError, AppError } from '../errors/AppError';
+import { NotFoundError } from '../errors/AppError';
 import {
   serializeTransaction,
   serializeTransactions,
@@ -31,6 +32,22 @@ export class TransactionService {
   }
 
   /**
+   * Rejects a receipt the caller does not own.
+   *
+   * `receiptId` arrives straight from the request body and was written to the
+   * transaction with no check, so any authenticated user could claim another
+   * user's receipt by id — taking the unique link for themselves and leaving
+   * the real owner unable to file their own scan. Categories and every other
+   * foreign key already enforce this; receipts were the gap.
+   */
+  private async assertReceiptAccessible(userId: string, receiptId: string): Promise<void> {
+    const receipt = await receiptRepository.findById(receiptId);
+    if (!receipt || receipt.userId !== userId) {
+      throw new NotFoundError('Receipt not found');
+    }
+  }
+
+  /**
    * Creates a transaction, deriving and persisting its conversion atomically.
    *
    * Same currency as the account base => rate 1, no provider call.
@@ -54,6 +71,9 @@ export class TransactionService {
     }
   ): Promise<SerializedTransaction> {
     await this.assertCategoryAccessible(userId, data.categoryId);
+    if (data.receiptId) {
+      await this.assertReceiptAccessible(userId, data.receiptId);
+    }
 
     const baseCurrency = await this.resolveBaseCurrency(userId);
     const currency = (data.currency ?? baseCurrency) as Currency;
@@ -88,6 +108,8 @@ export class TransactionService {
       isSubscription?: boolean;
       startDate?: Date;
       endDate?: Date;
+      minAmount?: number;
+      maxAmount?: number;
       sortBy: string;
       sortOrder: 'asc' | 'desc';
     }
@@ -147,6 +169,9 @@ export class TransactionService {
 
     if (data.categoryId) {
       await this.assertCategoryAccessible(userId, data.categoryId);
+    }
+    if (data.receiptId) {
+      await this.assertReceiptAccessible(userId, data.receiptId);
     }
 
     const amountChanged = data.amount !== undefined;

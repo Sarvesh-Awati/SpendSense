@@ -16,18 +16,13 @@ import Modal from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 import {
   Search,
-  Filter,
   Plus,
   ArrowRight,
   ArrowLeft,
-  TrendingDown,
-  TrendingUp,
   Tag,
   AlertTriangle,
-  Loader2,
   Calendar,
   X,
-  CreditCard,
 } from 'lucide-react';
 
 export const TransactionList: React.FC = () => {

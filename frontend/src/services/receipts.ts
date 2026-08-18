@@ -9,6 +9,13 @@ export interface ReceiptExtractionResult {
   suggestedCategory: string | null;
   description: string | null;
   confidence: number | null;
+  /**
+   * Distinguishes "the model failed" from "the receipt was blank".
+   * Both produce all-null fields, and telling the user their receipt was
+   * unreadable when the AI service was simply down sends them off to retype
+   * everything instead of retrying.
+   */
+  extractionStatus: 'EXTRACTED' | 'EMPTY' | 'FAILED';
 }
 
 export interface UploadResponse {
@@ -22,6 +29,7 @@ export interface UploadResponse {
   };
 }
 
+/** Full record, as returned by `GET /receipts/:id`. Includes the image. */
 export interface ReceiptRecord {
   id: string;
   imageUrl: string;
@@ -32,6 +40,25 @@ export interface ReceiptRecord {
   userId: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * List projection from `GET /receipts`.
+ *
+ * `imageUrl` and `rawText` are omitted server-side: images are stored as
+ * base64 data URLs, so including them made a list of twenty receipts a
+ * multi-megabyte response. Fetch the full record by id when the image is
+ * actually needed.
+ */
+export interface ReceiptSummary {
+  id: string;
+  extractedMerchant: string | null;
+  extractedAmount: number | null;
+  extractedDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** Present once this receipt has been filed as a transaction. */
+  transaction: { id: string } | null;
 }
 
 // REST Requests
@@ -47,7 +74,7 @@ export const uploadReceipt = async (file: File): Promise<UploadResponse> => {
   return response.data;
 };
 
-export const getReceipts = async (): Promise<{ status: string; data: { receipts: ReceiptRecord[] } }> => {
+export const getReceipts = async (): Promise<{ status: string; data: { receipts: ReceiptSummary[] } }> => {
   const response = await api.get('/receipts');
   return response.data;
 };

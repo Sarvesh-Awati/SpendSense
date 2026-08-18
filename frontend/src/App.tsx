@@ -1,24 +1,35 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, Outlet, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ToastProvider, useToast } from './components/ui/Toast';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './components/ui/Toast';
+import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AuthLayout from './features/auth/AuthLayout';
 import Login from './features/auth/Login';
 import Register from './features/auth/Register';
 import ForgotPassword from './features/auth/ForgotPassword';
 import ResetPassword from './features/auth/ResetPassword';
-import TransactionList from './features/transactions/TransactionList';
-import Dashboard from './features/dashboard/Dashboard';
-import BudgetList from './features/budgets/BudgetList';
-import GoalPage from './features/goals/GoalPage';
-import ReceiptScanner from './features/receipts/ReceiptScanner';
-import SubscriptionList from './features/subscriptions/SubscriptionList';
-import Profile from './features/profile/Profile';
-import AnalyticsDashboard from './features/analytics/AnalyticsDashboard';
 import UserMenu from './components/common/UserMenu';
-import { LogOut, LayoutDashboard, Receipt, PiggyBank, Target, Camera, Repeat, BarChart3 } from 'lucide-react';
+import { Skeleton } from './components/ui/Skeleton';
+
+/**
+ * Authenticated pages are code-split; the auth screens above are not.
+ *
+ * Everything used to live in one chunk, so a visitor landing on the login page
+ * downloaded the entire application — Recharts included, ~940 kB — before they
+ * could type a password. Splitting at the route boundary means the login path
+ * carries only what it needs, and the chart-heavy Dashboard and Analytics
+ * bundles load when someone actually navigates to them.
+ */
+const Dashboard = lazy(() => import('./features/dashboard/Dashboard'));
+const TransactionList = lazy(() => import('./features/transactions/TransactionList'));
+const BudgetList = lazy(() => import('./features/budgets/BudgetList'));
+const GoalPage = lazy(() => import('./features/goals/GoalPage'));
+const ReceiptScanner = lazy(() => import('./features/receipts/ReceiptScanner'));
+const SubscriptionList = lazy(() => import('./features/subscriptions/SubscriptionList'));
+const Profile = lazy(() => import('./features/profile/Profile'));
+const AnalyticsDashboard = lazy(() => import('./features/analytics/AnalyticsDashboard'));
+import { LayoutDashboard, Receipt, PiggyBank, Target, Camera, Repeat, BarChart3 } from 'lucide-react';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,7 +44,6 @@ const queryClient = new QueryClient({
 
 // Sidebar/Header layout wrapper for secured dashboard viewports
 const DashboardLayout: React.FC = () => {
-  const { toast } = useToast();
   const location = useLocation();
 
   const links = [
@@ -120,7 +130,22 @@ const DashboardLayout: React.FC = () => {
           </div>
         </nav>
 
-        <Outlet />
+        {/*
+          The fallback sits INSIDE the layout so the header and navigation stay
+          rendered while a route chunk loads — the page fills in, it does not
+          blink away and return.
+        */}
+        <Suspense
+          fallback={
+            <div className="space-y-4 py-6" role="status" aria-busy="true" aria-live="polite">
+              <span className="sr-only">Loading page…</span>
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-64 w-full" />
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
 
       {/* Mobile: app-style bottom navigation, icons only, safe-area aware */}

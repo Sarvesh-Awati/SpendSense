@@ -29,8 +29,10 @@ export function generateAccessToken(payload: TokenPayload): string {
  * so the signature bought nothing.
  *
  * They are now opaque random tokens — see utils/token.ts — stored as a
- * SHA-256 hash. `JWT_REFRESH_SECRET` is retained in the environment schema
- * for backward compatibility with existing deployments.
+ * SHA-256 hash. There is deliberately NO refresh-token secret: nothing signs
+ * or verifies them, so a second secret would protect nothing and rotating it
+ * would revoke nothing. Revocation is a database operation — clear the rows
+ * in `refresh_tokens` (or use authService.revokeAllSessions for one user).
  */
 
 /**

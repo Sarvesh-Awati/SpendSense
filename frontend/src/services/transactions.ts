@@ -24,6 +24,11 @@ export interface CreateTransactionData {
   paymentMethod?: string;
   categoryId: string;
   isSubscription?: boolean;
+  /**
+   * Links a scanned receipt to the transaction it produced. Set by the receipt
+   * scanner; the server verifies the receipt belongs to the caller.
+   */
+  receiptId?: string | null;
 }
 
 export interface UpdateTransactionData extends Partial<CreateTransactionData> {}
@@ -105,13 +110,28 @@ export const useCategories = () => {
   });
 };
 
+/**
+ * Every cache a transaction feeds.
+ *
+ * A transaction is the atom of this application: the dashboard's balance,
+ * every budget's `spent`, the analytics charts and the receipt list are all
+ * derived from it. These mutations previously invalidated only `transactions`,
+ * so adding an expense left the dashboard showing yesterday's balance and the
+ * budgets page showing the old spend until their own five-minute staleness
+ * elapsed — the most visible bug in everyday use.
+ */
+const invalidateTransactionDependents = (queryClient: ReturnType<typeof useQueryClient>) => {
+  ['transactions', 'dashboard', 'budgets', 'analytics', 'analyticsInsights', 'receipts'].forEach(
+    (key) => queryClient.invalidateQueries({ queryKey: [key] })
+  );
+};
+
 export const useCreateTransaction = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: createTransaction,
     onSuccess: () => {
-      // Invalidate the transactions list cache to fetch updated ledger items
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      invalidateTransactionDependents(queryClient);
     },
   });
 };
@@ -121,7 +141,7 @@ export const useUpdateTransaction = () => {
   return useMutation({
     mutationFn: updateTransaction,
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      invalidateTransactionDependents(queryClient);
       queryClient.invalidateQueries({ queryKey: ['transaction', variables.id] });
     },
   });
@@ -132,7 +152,7 @@ export const useDeleteTransaction = () => {
   return useMutation({
     mutationFn: deleteTransaction,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      invalidateTransactionDependents(queryClient);
     },
   });
 };
