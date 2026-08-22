@@ -84,7 +84,7 @@ export const BudgetForm: React.FC<BudgetFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 text-left">
+    <form noValidate onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 text-left">
       <Field label="Budget Scope" disabled={isPending || categoriesLoading}>
         {(ids) => (
           <Select {...ids} {...register('categoryId')}>

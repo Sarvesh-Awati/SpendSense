@@ -215,6 +215,66 @@ async function run() {
     );
   });
 
+  await test('a deleted account is fully removed and cannot be written to again', async () => {
+    const u = await makeUser('deleted');
+
+    // Give the account data so the cascade has something to remove.
+    await request('POST', '/api/transactions', {
+      token: u.token,
+      body: { amount: 500, type: 'EXPENSE', categoryId: u.expenseCat, date: TODAY },
+    });
+    await request('POST', '/api/goals', { token: u.token, body: { name: 'Doomed', targetAmount: 1000 } });
+
+    const noPassword = await request('DELETE', '/api/users/account', { token: u.token, body: {} });
+    assert(noPassword.status === 400, `deletion without a password must fail, got ${noPassword.status}`);
+
+    const wrongPassword = await request('DELETE', '/api/users/account', {
+      token: u.token,
+      body: { currentPassword: 'Wr0ng!Passw0rd' },
+    });
+    assert(wrongPassword.status === 401, `deletion with a wrong password must fail, got ${wrongPassword.status}`);
+
+    const deleted = await request('DELETE', '/api/users/account', {
+      token: u.token,
+      body: { currentPassword: PW },
+    });
+    assert(deleted.status === 200, `deletion should succeed, got ${deleted.status}`);
+
+    assert((await prisma.user.count({ where: { id: u.userId } })) === 0, 'user row must be gone');
+    assert((await prisma.transaction.count({ where: { userId: u.userId } })) === 0, 'transactions must cascade');
+    assert((await prisma.goal.count({ where: { userId: u.userId } })) === 0, 'goals must cascade');
+    assert((await prisma.refreshToken.count({ where: { userId: u.userId } })) === 0, 'sessions must be revoked');
+
+    /**
+     * The access token stays cryptographically valid until it expires — that
+     * is the stateless-JWT tradeoff, bounded here to 15 minutes. What must
+     * hold is that it grants NOTHING: no writes, and no other user's data.
+     */
+    const write = await request('POST', '/api/transactions', {
+      token: u.token,
+      body: { amount: 1, type: 'EXPENSE', categoryId: u.expenseCat, date: TODAY },
+    });
+    assert(write.status === 404, `a deleted account must not be able to write, got ${write.status}`);
+  });
+
+  await test("a deleted user's token cannot reach another user's data", async () => {
+    const victim = await makeUser('delvictim');
+    const ghost = await makeUser('delghost');
+
+    const vTx = await request('POST', '/api/transactions', {
+      token: victim.token,
+      body: { amount: 9999, type: 'EXPENSE', categoryId: victim.expenseCat, date: TODAY, merchant: 'VICTIM' },
+    });
+    assert(vTx.status === 201, 'victim seed failed');
+
+    await request('DELETE', '/api/users/account', { token: ghost.token, body: { currentPassword: PW } });
+
+    const reach = await request('GET', `/api/transactions/${vTx.body.data.transaction.id}`, {
+      token: ghost.token,
+    });
+    assert(reach.status === 404, `a deleted account must not read another user's record, got ${reach.status}`);
+  });
+
   // ---------------------------------------------------------------
   console.log('\n── Input validation and error shape ──');
 

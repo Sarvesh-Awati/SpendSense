@@ -267,7 +267,7 @@ export const Profile: React.FC = () => {
           
           {/* PROFILE SECTION */}
           {activeTab === 'profile' && (
-            <form onSubmit={handleProfileSubmit} className="space-y-8 animate-fade-in">
+            <form noValidate onSubmit={handleProfileSubmit} className="space-y-8 animate-fade-in">
               <div>
                 <h2 className="text-lg font-bold">Profile</h2>
                 <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-1">Update your photo and personal details.</p>
@@ -372,7 +372,7 @@ export const Profile: React.FC = () => {
 
           {/* PREFERENCES SECTION */}
           {activeTab === 'preferences' && (
-            <form onSubmit={handlePreferencesSubmit} className="space-y-8 animate-fade-in">
+            <form noValidate onSubmit={handlePreferencesSubmit} className="space-y-8 animate-fade-in">
               <div>
                 <h2 className="text-lg font-bold">Preferences</h2>
                 <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-1">Manage your regional formatting settings.</p>
@@ -453,7 +453,7 @@ export const Profile: React.FC = () => {
 
           {/* APPEARANCE SECTION */}
           {activeTab === 'appearance' && (
-            <form onSubmit={handleAppearanceSubmit} className="space-y-8 animate-fade-in">
+            <form noValidate onSubmit={handleAppearanceSubmit} className="space-y-8 animate-fade-in">
               <div>
                 <h2 className="text-lg font-bold">Appearance</h2>
                 <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-1">Customize the interface theme.</p>
@@ -496,7 +496,7 @@ export const Profile: React.FC = () => {
 
           {/* NOTIFICATIONS SECTION */}
           {activeTab === 'notifications' && (
-            <form onSubmit={handleNotificationsSubmit} className="space-y-8 animate-fade-in">
+            <form noValidate onSubmit={handleNotificationsSubmit} className="space-y-8 animate-fade-in">
               <div>
                 <h2 className="text-lg font-bold">Notifications</h2>
                 <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-1">Manage how we communicate with you.</p>
@@ -539,7 +539,7 @@ export const Profile: React.FC = () => {
           {/* SECURITY SECTION */}
           {activeTab === 'security' && (
             <div className="space-y-10 animate-fade-in">
-              <form onSubmit={handlePasswordSubmit} className="space-y-6">
+              <form noValidate onSubmit={handlePasswordSubmit} className="space-y-6">
                 <div>
                   <h2 className="text-lg font-bold">Security</h2>
                   <p className="text-xs text-text-secondaryLight dark:text-text-secondaryDark mt-1">Update your password and secure your account.</p>

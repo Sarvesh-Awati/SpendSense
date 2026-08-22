@@ -114,7 +114,7 @@ export const SubscriptionFormModal: React.FC<SubscriptionFormModalProps> = ({
       size="md"
     >
       {/* Footer actions stay inside the form so submit still works. */}
-      <form onSubmit={handleSubmit(submitNormalized)} className="space-y-4 text-left">
+      <form noValidate onSubmit={handleSubmit(submitNormalized)} className="space-y-4 text-left">
         <Field label="Name" error={errors.name?.message} disabled={isPending}>
           {(ids) => (
             <Input

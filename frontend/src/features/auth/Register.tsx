@@ -67,7 +67,7 @@ export const Register: React.FC = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       {/* First Name & Last Name Grid */}
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -88,11 +88,13 @@ export const Register: React.FC = () => {
                   ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                   : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
               }`}
-              {...register('firstName')}
+              aria-invalid={!!errors.firstName}
+            aria-describedby={errors.firstName ? 'firstName-error' : undefined}
+            {...register('firstName')}
             />
           </div>
           {errors.firstName && (
-            <p className="text-[11px] text-finance-expense mt-1.5 font-medium">{errors.firstName.message}</p>
+            <p id="firstName-error" role="alert" className="text-[11px] text-finance-expense mt-1.5 font-medium">{errors.firstName.message}</p>
           )}
         </div>
 
@@ -114,11 +116,13 @@ export const Register: React.FC = () => {
                   ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                   : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
               }`}
-              {...register('lastName')}
+              aria-invalid={!!errors.lastName}
+            aria-describedby={errors.lastName ? 'lastName-error' : undefined}
+            {...register('lastName')}
             />
           </div>
           {errors.lastName && (
-            <p className="text-[11px] text-finance-expense mt-1.5 font-medium">{errors.lastName.message}</p>
+            <p id="lastName-error" role="alert" className="text-[11px] text-finance-expense mt-1.5 font-medium">{errors.lastName.message}</p>
           )}
         </div>
       </div>
@@ -142,11 +146,13 @@ export const Register: React.FC = () => {
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
             }`}
+            aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? 'email-error' : undefined}
             {...register('email')}
           />
         </div>
         {errors.email && (
-          <p className="text-[11px] text-finance-expense mt-1.5 font-medium">{errors.email.message}</p>
+          <p id="email-error" role="alert" className="text-[11px] text-finance-expense mt-1.5 font-medium">{errors.email.message}</p>
         )}
       </div>
 
@@ -169,11 +175,13 @@ export const Register: React.FC = () => {
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
             }`}
+            aria-invalid={!!errors.password}
+            aria-describedby={errors.password ? 'password-error' : undefined}
             {...register('password')}
           />
         </div>
         {errors.password && (
-          <p className="text-[11px] text-finance-expense mt-1.5 font-medium leading-relaxed">{errors.password.message}</p>
+          <p id="password-error" role="alert" className="text-[11px] text-finance-expense mt-1.5 font-medium leading-relaxed">{errors.password.message}</p>
         )}
       </div>
 

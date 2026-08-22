@@ -170,7 +170,7 @@ export const ResetPassword: React.FC = () => {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark leading-relaxed">
         Enter your new password below. Make sure it's strong and unique.
       </p>
@@ -194,6 +194,8 @@ export const ResetPassword: React.FC = () => {
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
             }`}
+            aria-invalid={!!errors.password}
+            aria-describedby={errors.password ? 'reset-password-error' : undefined}
             {...register('password')}
           />
           <button
@@ -205,7 +207,7 @@ export const ResetPassword: React.FC = () => {
           </button>
         </div>
         {errors.password && (
-          <p className="text-xs text-finance-expense mt-1.5 font-medium leading-relaxed">{errors.password.message}</p>
+          <p id="reset-password-error" role="alert" className="text-xs text-finance-expense mt-1.5 font-medium leading-relaxed">{errors.password.message}</p>
         )}
       </div>
 
@@ -228,6 +230,8 @@ export const ResetPassword: React.FC = () => {
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
             }`}
+            aria-invalid={!!errors.confirmPassword}
+            aria-describedby={errors.confirmPassword ? 'reset-confirm-password-error' : undefined}
             {...register('confirmPassword')}
           />
           <button
@@ -239,7 +243,7 @@ export const ResetPassword: React.FC = () => {
           </button>
         </div>
         {errors.confirmPassword && (
-          <p className="text-xs text-finance-expense mt-1.5 font-medium">{errors.confirmPassword.message}</p>
+          <p id="reset-confirm-password-error" role="alert" className="text-xs text-finance-expense mt-1.5 font-medium">{errors.confirmPassword.message}</p>
         )}
       </div>
 

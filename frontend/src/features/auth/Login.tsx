@@ -55,8 +55,18 @@ export const Login: React.FC = () => {
     loginMutation.mutate(data);
   };
 
+  /*
+   * noValidate: zod is the single source of validation truth.
+   *
+   * Without it, `<input type="email">` triggers the browser's own constraint
+   * validation, which aborts submission BEFORE react-hook-form runs. The app's
+   * styled, aria-linked error messages then never appeared for the most common
+   * mistake of all — a malformed email — and the user got an unstyled native
+   * bubble instead, with none of the aria-invalid/aria-describedby wiring that
+   * assistive technology relies on.
+   */
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {/* Email Input */}
       <div>
         <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wider text-text-secondaryLight dark:text-text-secondaryDark mb-2">
@@ -76,11 +86,13 @@ export const Login: React.FC = () => {
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
             }`}
+            aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? 'email-error' : undefined}
             {...register('email')}
           />
         </div>
         {errors.email && (
-          <p className="text-xs text-finance-expense mt-1.5 font-medium">{errors.email.message}</p>
+          <p id="email-error" role="alert" className="text-xs text-finance-expense mt-1.5 font-medium">{errors.email.message}</p>
         )}
       </div>
 
@@ -111,11 +123,13 @@ export const Login: React.FC = () => {
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
             }`}
+            aria-invalid={!!errors.password}
+            aria-describedby={errors.password ? 'password-error' : undefined}
             {...register('password')}
           />
         </div>
         {errors.password && (
-          <p className="text-xs text-finance-expense mt-1.5 font-medium">{errors.password.message}</p>
+          <p id="password-error" role="alert" className="text-xs text-finance-expense mt-1.5 font-medium">{errors.password.message}</p>
         )}
       </div>
 

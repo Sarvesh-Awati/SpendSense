@@ -79,7 +79,7 @@ export const GoalForm: React.FC<GoalFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 text-left">
+    <form noValidate onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4 text-left">
       <Field label="Milestone / Goal Name" error={errors.name?.message} disabled={isPending}>
         {(ids) => (
           <Input

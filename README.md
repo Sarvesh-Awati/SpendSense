@@ -267,6 +267,10 @@ origin and the frontend built with `VITE_API_URL` pointing at the API.
 - **CORS is an allowlist** with no wildcard, and production will not boot without one.
 - **Errors never leak internals.** Prisma messages embed filesystem paths and source
   excerpts; they are logged and answered with a generic message plus a correlation id.
+- **Forms validate through zod, not the browser.** Every form sets `noValidate`, so the
+  app's own styled, `aria-invalid`/`aria-describedby`-linked messages are what users and
+  screen readers get — native constraint bubbles would otherwise abort submission before
+  validation ran and bypass that wiring entirely.
 - **Tenant isolation** is enforced on every resource, including the foreign keys —
   categories and receipts belonging to another user are rejected.
 
@@ -285,6 +289,8 @@ Documented deliberately; none of these is presented in the UI as though it worke
 | **No natural-language transaction entry** | Earlier drafts of this README described it. It was never built. |
 | **Analytics reads full history** | Every analytics request loads the account's whole transaction history, because cash-flow figures are all-time by contract. Fine at personal scale; needs windowing or materialisation at large volumes. |
 | **`baseCurrency` cannot be re-based** | Changing it would invalidate every stored conversion, so it is fixed after the first transaction. A safe re-basing operation would have to re-price history explicitly. |
+| **Access tokens survive account deletion for up to 15 minutes** | Access tokens are stateless JWTs, so deletion cannot revoke one already issued. Verified impact: the token grants **no writes and no other user's data** — every endpoint scoped to the deleted account returns 404 or an empty result. Refresh tokens *are* revoked immediately. Closing the window entirely would mean a database lookup on every authenticated request, which is not worth it for zero disclosure. |
+| **Analytics is computed twice per page load** | The charts and the AI advisor are separate endpoints (so a slow model cannot block the charts), and each recomputes the same aggregates. Wall-clock is better; total database work is higher. A shared short-lived cache would fix it, but caching financial reads risks showing stale figures right after a write. |
 | **Email is optional** | Without SMTP configured, password-reset emails are not sent. The endpoint still behaves identically for callers, so no information leaks. |
 
 ---

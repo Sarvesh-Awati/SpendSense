@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit2, Trash2, Eye, ArrowUpDown, RefreshCw } from 'lucide-react';
+import { Edit2, Trash2, Eye, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react';
 import { formatCurrency } from '../../utils/formatCurrency';
 
 interface TransactionTableProps {
@@ -34,24 +34,62 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
     return type === 'INCOME' ? `+ ${formatted}` : `- ${formatted}`;
   };
 
+  /**
+   * Sortable column header.
+   *
+   * The previous markup put `onClick` on a bare `<th>`: no tabIndex, no role,
+   * no key handler — so the table could only be sorted with a mouse, and a
+   * keyboard or screen-reader user had no way to reach it at all. It also
+   * ignored the `sortBy`/`sortOrder` props it was already being given, so
+   * nothing on screen said which column was sorted or in which direction.
+   *
+   * A real <button> restores keyboard access and focus for free; `aria-sort`
+   * on the cell is what assistive technology actually reads.
+   */
+  const SortableHeader: React.FC<{ field: string; label: string; align?: 'left' | 'right' }> = ({
+    field,
+    label,
+    align = 'left',
+  }) => {
+    const active = sortBy === field;
+    const direction = active ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none';
+    const Icon = active ? (sortOrder === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+    return (
+      <th className="py-4 px-4" aria-sort={direction}>
+        <button
+          type="button"
+          onClick={() => onSort(field)}
+          aria-label={`Sort by ${label}, currently ${
+            active ? `sorted ${direction}` : 'unsorted'
+          }`}
+          // py-1/-my-1 lifts the hit box to the 24px minimum (WCAG 2.5.8)
+          // without moving the label: the <th> already supplies the padding.
+          className={`inline-flex items-center gap-1 py-1 -my-1 min-h-[24px] rounded transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${
+            align === 'right' ? 'justify-end w-full' : ''
+          } ${
+            active
+              ? 'text-text-primaryLight dark:text-text-primaryDark'
+              : 'hover:text-text-primaryLight dark:hover:text-text-primaryDark'
+          }`}
+        >
+          {label}
+          <Icon className="w-3 h-3" aria-hidden="true" />
+        </button>
+      </th>
+    );
+  };
+
   return (
     <div className="overflow-x-auto w-full hidden md:block">
       <table className="w-full border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-border-light dark:border-border-dark text-text-secondaryLight dark:text-text-secondaryDark text-xs font-bold uppercase tracking-wider">
-            <th className="py-4 px-4 cursor-pointer hover:text-text-primaryLight dark:hover:text-text-primaryDark transition-colors" onClick={() => onSort('date')}>
-              <span className="flex items-center gap-1">
-                Date <ArrowUpDown className="w-3 h-3" />
-              </span>
-            </th>
+            <SortableHeader field="date" label="Date" />
             <th className="py-4 px-4">Merchant / Description</th>
             <th className="py-4 px-4">Category</th>
             <th className="py-4 px-4">Method</th>
-            <th className="py-4 px-4 cursor-pointer hover:text-text-primaryLight dark:hover:text-text-primaryDark transition-colors" onClick={() => onSort('amount')}>
-              <span className="flex items-center gap-1">
-                Amount <ArrowUpDown className="w-3 h-3" />
-              </span>
-            </th>
+            <SortableHeader field="amount" label="Amount" />
             <th className="py-4 px-4 text-right">Actions</th>
           </tr>
         </thead>

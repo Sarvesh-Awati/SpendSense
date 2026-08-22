@@ -75,7 +75,7 @@ export const ForgotPassword: React.FC = () => {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <p className="text-sm text-text-secondaryLight dark:text-text-secondaryDark leading-relaxed">
         Enter the email address associated with your account, and we'll send you a link to reset your password.
       </p>
@@ -99,11 +99,13 @@ export const ForgotPassword: React.FC = () => {
                 ? 'border-finance-expense/30 focus:border-finance-expense focus:ring-finance-expense'
                 : 'border-border-light dark:border-border-dark focus:border-brand-primary focus:ring-brand-primary'
             }`}
+            aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? 'forgot-email-error' : undefined}
             {...register('email')}
           />
         </div>
         {errors.email && (
-          <p className="text-xs text-finance-expense mt-1.5 font-medium">{errors.email.message}</p>
+          <p id="forgot-email-error" role="alert" className="text-xs text-finance-expense mt-1.5 font-medium">{errors.email.message}</p>
         )}
       </div>
 

@@ -57,7 +57,7 @@ export const GoalContributionModal: React.FC<GoalContributionModalProps> = ({
   const symbol = currencySymbol(currency);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
+    <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
       <Field
         label="Savings Contribution Amount"
         error={errors.amount?.message}

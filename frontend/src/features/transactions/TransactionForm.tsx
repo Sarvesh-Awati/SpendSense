@@ -87,7 +87,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const selectedCurrency = watch('currency');
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
+    <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
       {/* Transaction Type Segment */}
       <div className="grid grid-cols-2 gap-3 p-1 rounded-xl bg-slate-100 dark:bg-surface-sunk border border-border-light dark:border-border-dark">
         <label className={`flex items-center justify-center py-3 rounded-lg text-xs font-bold tracking-wider uppercase cursor-pointer transition-all ${
